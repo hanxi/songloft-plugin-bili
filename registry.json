@@ -1,0 +1,6 @@
+{
+  "name": "哔哩哔哩音乐",
+  "plugins": [
+    "https://raw.githubusercontent.com/songloft-org/songloft-plugin-bili/main/plugin.json"
+  ]
+}

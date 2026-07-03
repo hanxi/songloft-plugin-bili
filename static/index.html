@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>哔哩哔哩音乐</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 搜索 -->
+    <section id="tab-search" class="tab-panel active">
+      <div class="search-bar">
+        <input id="search-input" type="text" placeholder="搜索 B 站视频/音乐…" />
+        <button id="search-btn" class="btn btn-primary">搜索</button>
+      </div>
+      <div id="search-results" class="list"></div>
+      <div id="search-more" class="center" style="display:none">
+        <button id="search-more-btn" class="btn">加载更多</button>
+      </div>
+    </section>
+
+    <!-- 收藏夹 -->
+    <section id="tab-fav" class="tab-panel">
+      <div id="fav-login-hint" class="hint" style="display:none">需要先在「账号」登录才能查看收藏夹。</div>
+      <div id="fav-folders" class="list"></div>
+      <div id="fav-content-wrap" style="display:none">
+        <div class="bar">
+          <button id="fav-back" class="btn">← 返回</button>
+          <span id="fav-title" class="bar-title"></span>
+          <label class="chk"><input type="checkbox" id="fav-as-playlist" checked /> 建为歌单</label>
+          <button id="fav-import" class="btn btn-primary">整夹导入</button>
+        </div>
+        <div id="fav-content" class="list"></div>
+      </div>
+    </section>
+
+    <!-- 下载 -->
+    <section id="tab-download" class="tab-panel">
+      <div id="download-empty" class="hint">暂无下载任务。</div>
+      <div id="download-progress" style="display:none">
+        <div class="progress-text"><span id="dl-current">0</span>/<span id="dl-total">0</span>
+          （成功 <span id="dl-success">0</span>，失败 <span id="dl-failed">0</span>）</div>
+        <div class="progress"><div id="dl-bar" class="progress-inner"></div></div>
+        <button id="dl-clear" class="btn" style="margin-top:12px">清除</button>
+      </div>
+    </section>
+
+    <!-- 账号 -->
+    <section id="tab-account" class="tab-panel">
+      <div id="account-logged-out">
+        <div class="card">
+          <h3>扫码登录</h3>
+          <p class="muted">用「哔哩哔哩」App 扫码登录。</p>
+          <button id="qr-start" class="btn btn-primary">生成二维码</button>
+          <div id="qr-box" class="qr-box" style="display:none"></div>
+          <div id="qr-status" class="muted"></div>
+        </div>
+        <div class="card">
+          <h3>Cookie 登录</h3>
+          <p class="muted">从浏览器登录 bilibili.com 后复制 Cookie（至少含 SESSDATA）。</p>
+          <textarea id="cookie-input" placeholder="SESSDATA=xxx; bili_jct=yyy; DedeUserID=zzz"></textarea>
+          <button id="cookie-login" class="btn btn-primary">用 Cookie 登录</button>
+        </div>
+      </div>
+      <div id="account-logged-in" style="display:none">
+        <div class="card center">
+          <img id="account-face" class="avatar" alt="" />
+          <div id="account-name" class="account-name"></div>
+          <div id="account-vip" class="muted"></div>
+          <button id="logout-btn" class="btn" style="margin-top:12px">退出登录</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="field">
+        <label>音质</label>
+        <select id="set-quality">
+          <option value="high">最高</option>
+          <option value="medium">中（≤192K）</option>
+          <option value="low">最低（省流）</option>
+        </select>
+      </div>
+      <label class="chk"><input type="checkbox" id="set-dolby" /> 优先杜比全景声（需大会员）</label>
+      <label class="chk"><input type="checkbox" id="set-hires" /> 优先 Hi-Res 无损（需大会员）</label>
+      <div class="field">
+        <label>下载路径模板</label>
+        <input id="set-template" type="text" placeholder="bili/{artist}/{title}" />
+      </div>
+      <label class="chk"><input type="checkbox" id="set-embed" /> 下载时嵌入元数据</label>
+      <div class="field">
+        <label>下载间隔（秒）</label>
+        <input id="set-interval" type="number" min="0" max="30" />
+      </div>
+    </section>
+
+    <!-- 导入操作条（搜索选中时浮现） -->
+    <div id="import-bar" class="import-bar" style="display:none">
+      <input id="import-playlist" type="text" placeholder="歌单名（留空不建歌单）" />
+      <button id="import-only" class="btn">仅导入</button>
+      <button id="import-download" class="btn btn-primary">导入并下载</button>
+    </div>
+
+    <!-- 底部 Tab -->
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="search"><span class="material-symbols-outlined">search</span>搜索</button>
+      <button class="tab-btn" data-tab="fav"><span class="material-symbols-outlined">star</span>收藏夹</button>
+      <button class="tab-btn" data-tab="download"><span class="material-symbols-outlined">download</span>下载</button>
+      <button class="tab-btn" data-tab="account"><span class="material-symbols-outlined">person</span>账号</button>
+      <button class="tab-btn" data-tab="settings"><span class="material-symbols-outlined">settings</span>设置</button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

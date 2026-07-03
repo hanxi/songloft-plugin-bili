@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.songloft-dev.json
+*.log

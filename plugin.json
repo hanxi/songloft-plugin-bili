@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
+  "name": "哔哩哔哩音乐",
+  "version": "2026.7.3",
+  "description": "登录 B 站后搜索、导入歌曲，浏览并导入收藏夹歌单，支持按需播放与下载到本地",
+  "author": "songloft",
+  "homepage": "",
+  "license": "Apache-2.0",
+  "icon": "icon.svg",
+  "entryPath": "bili",
+  "main": "main.js",
+  "minHostVersion": "2.0.0",
+  "permissions": [
+    "storage",
+    "songs.write"
+  ],
+  "updateUrl": "",
+  "download_url": "",
+  "entryHash": "",
+  "zipHash": ""
+}

@@ -1,0 +1,17 @@
+{
+  "name": "songloft-plugin-bili",
+  "version": "2026.7.3",
+  "description": "哔哩哔哩音乐导入插件（搜索/收藏夹/播放/下载）",
+  "private": true,
+  "scripts": {
+    "build": "songloft-plugin build",
+    "dev": "songloft-plugin dev",
+    "validate": "songloft-plugin validate",
+    "publish:release": "songloft-plugin publish"
+  },
+  "devDependencies": {
+    "@songloft/plugin-builder": "^2.9.0",
+    "@songloft/plugin-sdk": "^2.9.0",
+    "typescript": "^5.7.0"
+  }
+}
