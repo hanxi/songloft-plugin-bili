@@ -1,0 +1,107 @@
+name: Release Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（留空则自动生成日期版本，格式：Y.M.D）'
+        required: false
+        default: ''
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="$(date +'%Y.%-m.%-d')"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+
+      - name: Update version in plugin.json / package.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          node -e "
+            const fs = require('fs');
+            for (const f of ['plugin.json', 'package.json']) {
+              const p = JSON.parse(fs.readFileSync(f, 'utf-8'));
+              p.version = '${VERSION}';
+              fs.writeFileSync(f, JSON.stringify(p, null, 2) + '\n');
+            }
+          "
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Extract plugin info
+        id: plugin_info
+        run: |
+          ENTRY_PATH=$(node -p "require('./plugin.json').entryPath")
+          ZIP_NAME="${ENTRY_PATH}.jsplugin.zip"
+          echo "entryPath=${ENTRY_PATH}" >> $GITHUB_OUTPUT
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="${{ steps.plugin_info.outputs.zip_name }}"
+          TAG="v${VERSION}"
+
+          if gh release view "${TAG}" &>/dev/null; then
+            gh release delete "${TAG}" --yes --cleanup-tag
+          fi
+
+          gh release create "${TAG}" \
+            "dist/${ZIP_NAME}" \
+            --title "v${VERSION}" \
+            --notes "自动构建的 JS 插件 v${VERSION}"
+
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP_NAME}"
+          echo "download_url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DOWNLOAD_URL="${{ steps.create_release.outputs.download_url }}"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('plugin.json', 'utf-8'));
+            p.version = '${VERSION}';
+            p.download_url = '${DOWNLOAD_URL}';
+            fs.writeFileSync('plugin.json', JSON.stringify(p, null, 2) + '\n');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plugin.json package.json
+          git diff --staged --quiet || git commit -m "chore(release): bump to v${VERSION}"
+          git push
