@@ -7,7 +7,7 @@
 import { jsonResponse } from '@songloft/plugin-sdk';
 import type { RouteHandler } from '@songloft/plugin-sdk';
 import { biliGet } from './client';
-import { durationToSeconds, type BiliVideo } from './search';
+import { durationToSeconds, normPic, type BiliVideo } from './search';
 import { importSongs } from './importer';
 
 async function getLoginMid(): Promise<number> {
@@ -52,8 +52,9 @@ export async function fetchFolderItems(mediaId: number, all: boolean, page = 1):
         aid: m.id,
         title: m.title || '',
         author: m.upper?.name || '',
-        cover: m.cover || '',
+        cover: normPic(m.cover || ''),
         duration: durationToSeconds(m.duration || 0),
+        url: `https://www.bilibili.com/video/${m.bvid}`,
       });
     }
     if (!all || !j.data?.has_more || medias.length === 0) break;

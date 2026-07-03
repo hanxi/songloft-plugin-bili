@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
-  "name": "哔哩哔哩音乐",
+  "name": "哔哩音乐",
   "version": "2026.7.3",
   "description": "登录 B 站后搜索、导入歌曲，浏览并导入收藏夹歌单，支持按需播放与下载到本地",
   "author": "songloft",
@@ -16,6 +16,6 @@
   ],
   "updateUrl": "",
   "download_url": "",
-  "entryHash": "",
-  "zipHash": ""
+  "entryHash": "c629fbff5fb5e9b742cf6c98bd670c704df57d10ca314af68fa4ca82b0c8df92",
+  "zipHash": "9bffd851e42a35eb7fe0a27c471c0e25495da72f0a6fdc9446399ed67daa1aaa"
 }

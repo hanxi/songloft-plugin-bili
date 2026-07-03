@@ -3,16 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>哔哩哔哩音乐</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title>哔哩音乐</title>
+  <link rel="stylesheet" href="static/css/style.css" />
 </head>
 <body>
   <div class="app">
     <!-- 搜索 -->
     <section id="tab-search" class="tab-panel active">
-      <div class="search-bar">
-        <input id="search-input" type="text" placeholder="搜索 B 站视频/音乐…" />
-        <button id="search-btn" class="btn btn-primary">搜索</button>
+      <div class="card import-mode-card">
+        <div class="card-header">
+          <span class="material-symbols-outlined">link</span>
+          <span class="card-title">导入歌曲</span>
+        </div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="url">
+            <span class="material-symbols-outlined">link</span>
+            URL 模式
+          </button>
+          <button class="mode-btn" data-mode="search">
+            <span class="material-symbols-outlined">search</span>
+            搜索模式
+          </button>
+        </div>
+        <div id="mode-url" class="mode-panel">
+          <div class="mode-input-row">
+            <input id="url-input" type="text" placeholder="输入 B 站视频、分P、收藏夹或合集链接" />
+            <button id="url-extract-btn" class="btn btn-primary">提取</button>
+          </div>
+          <div id="url-extract-status" class="muted" style="display:none"></div>
+        </div>
+        <div id="mode-search" class="mode-panel hidden">
+          <div class="mode-input-row">
+            <input id="search-input" type="text" placeholder="搜索 B 站视频/音乐…" />
+            <button id="search-btn" class="btn btn-primary">搜索</button>
+          </div>
+        </div>
       </div>
       <div id="search-results" class="list"></div>
       <div id="search-more" class="center" style="display:none">
@@ -22,7 +47,7 @@
 
     <!-- 收藏夹 -->
     <section id="tab-fav" class="tab-panel">
-      <div id="fav-login-hint" class="hint" style="display:none">需要先在「账号」登录才能查看收藏夹。</div>
+      <div id="fav-login-hint" class="hint" style="display:none">需要先在「设置」登录才能查看收藏夹。</div>
       <div id="fav-folders" class="list"></div>
       <div id="fav-content-wrap" style="display:none">
         <div class="bar">
@@ -46,8 +71,9 @@
       </div>
     </section>
 
-    <!-- 账号 -->
-    <section id="tab-account" class="tab-panel">
+    <!-- 设置 -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="section-title">账号</div>
       <div id="account-logged-out">
         <div class="card">
           <h3>扫码登录</h3>
@@ -71,10 +97,20 @@
           <button id="logout-btn" class="btn" style="margin-top:12px">退出登录</button>
         </div>
       </div>
-    </section>
 
-    <!-- 设置 -->
-    <section id="tab-settings" class="tab-panel">
+      <div class="section-title">接口测试</div>
+      <div class="card compact-card">
+        <div class="field">
+          <label>搜索接口测试</label>
+          <div class="inline-bar">
+            <input id="search-test-input" type="text" placeholder="输入搜索关键字" />
+            <button id="search-test-btn" class="btn btn-primary">测试</button>
+          </div>
+          <div id="search-test-result" class="test-result" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="section-title">播放与下载</div>
       <div class="field">
         <label>音质</label>
         <select id="set-quality">
@@ -108,14 +144,13 @@
       <button class="tab-btn active" data-tab="search"><span class="material-symbols-outlined">search</span>搜索</button>
       <button class="tab-btn" data-tab="fav"><span class="material-symbols-outlined">star</span>收藏夹</button>
       <button class="tab-btn" data-tab="download"><span class="material-symbols-outlined">download</span>下载</button>
-      <button class="tab-btn" data-tab="account"><span class="material-symbols-outlined">person</span>账号</button>
       <button class="tab-btn" data-tab="settings"><span class="material-symbols-outlined">settings</span>设置</button>
     </nav>
   </div>
 
   <div id="toast" class="toast"></div>
 
-  <script src="js/qrcode.min.js"></script>
-  <script src="js/app.js"></script>
+  <script src="static/js/qrcode.min.mjs"></script>
+  <script src="static/js/app.js"></script>
 </body>
 </html>

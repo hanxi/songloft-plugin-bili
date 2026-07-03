@@ -3,7 +3,7 @@
 // 把 B站视频作为在线歌曲导入（POST /api/v1/songs/remote），可选建歌单并加歌。
 
 import { callHostAPI } from './utils/http';
-import type { BiliVideo } from './search';
+import { dedupKeyForVideo, sourceDataForVideo, type BiliVideo } from './search';
 
 interface ImportedSong {
   id: number;
@@ -34,8 +34,8 @@ export async function importSongs(
       cover_url: item.cover,
       duration: item.duration,
       plugin_entry_path: 'bili',
-      source_data: JSON.stringify({ bvid: item.bvid, aid: item.aid }),
-      dedup_key: `bili:${item.bvid}`,
+      source_data: JSON.stringify(sourceDataForVideo(item)),
+      dedup_key: dedupKeyForVideo(item),
     }));
     const resp = await callHostAPI<{ songs: ImportedSong[]; count: number }>(
       'POST',

@@ -47,8 +47,10 @@
       $('tab-' + tab).classList.add('active');
       if (tab === 'fav') loadFolders();
       if (tab === 'download') refreshDownload();
-      if (tab === 'settings') loadSettings();
-      if (tab === 'account') refreshStatus();
+      if (tab === 'settings') {
+        loadSettings();
+        refreshStatus();
+      }
     });
   });
 
@@ -149,39 +151,168 @@
   // ================= 搜索 =================
   let searchKeyword = '';
   let searchPage = 1;
-  const selected = new Map(); // bvid -> item
+  const selected = new Map(); // bvid[:cid] -> item
 
-  function updateImportBar() {
-    $('import-bar').style.display = selected.size > 0 ? 'flex' : 'none';
+  document.querySelectorAll('.mode-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      $('mode-url').classList.toggle('hidden', mode !== 'url');
+      $('mode-search').classList.toggle('hidden', mode !== 'search');
+    });
+  });
+
+  function itemKey(v) {
+    return v.cid ? v.bvid + ':cid:' + v.cid : v.bvid;
   }
 
-  function renderVideoItem(container, v) {
-    const div = document.createElement('div');
-    div.className = 'item';
-    const checked = selected.has(v.bvid) ? 'checked' : '';
-    div.innerHTML =
-      '<input type="checkbox" ' +
+  function setSelectedItem(item, checked) {
+    const key = itemKey(item);
+    if (checked) selected.set(key, item);
+    else selected.delete(key);
+  }
+
+  function shouldShowPartsButton(v) {
+    if (v.cid) return false;
+    if (v.part_count && v.part_count > 1) return true;
+    return /(合集|歌单|连播|全集|系列|精选|分P|P\d+|全(?:\d+|[一二三四五六七八九十百千万]+)?首)/i.test(v.title || '');
+  }
+
+  function updateImportBar() {
+    const active = selected.size > 0;
+    $('import-bar').style.display = active ? 'flex' : 'none';
+    document.querySelector('.app').classList.toggle('import-active', active);
+  }
+
+  function renderVideoItem(container, v, checkedByDefault) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'result-node';
+    const row = document.createElement('div');
+    row.className = 'item search-parent';
+    const key = itemKey(v);
+    if (checkedByDefault) setSelectedItem(v, true);
+    const checked = selected.has(key) ? 'checked' : '';
+    const hasPartsButton = shouldShowPartsButton(v);
+    row.innerHTML =
+      '<input type="checkbox" class="parent-check" ' +
       checked +
       ' />' +
       '<img class="cover" src="' +
       proxyImg(v.cover) +
       '" />' +
-      '<div class="meta"><div class="title"></div><div class="sub"></div></div>';
-    div.querySelector('.title').textContent = v.title;
-    div.querySelector('.sub').textContent = v.author + ' · ' + fmtDuration(v.duration);
-    const cb = div.querySelector('input');
+      '<div class="meta"><div class="title"></div><div class="sub"></div></div>' +
+      (hasPartsButton
+        ? '<button class="btn part-toggle" type="button"><span class="material-symbols-outlined">account_tree</span><span>分P</span></button>'
+        : '');
+    row.querySelector('.title').textContent = v.title;
+    row.querySelector('.sub').textContent =
+      v.author + (v.page ? ' · P' + v.page : '') + ' · ' + fmtDuration(v.duration);
+    const cb = row.querySelector('.parent-check');
     cb.addEventListener('change', () => {
-      if (cb.checked) selected.set(v.bvid, v);
-      else selected.delete(v.bvid);
+      const partList = wrapper.querySelector('.part-list');
+      if (partList) {
+        setSelectedItem(v, false);
+        partList.querySelectorAll('.part-check').forEach((partCheck) => {
+          partCheck.checked = cb.checked;
+          setSelectedItem(partCheck._item, cb.checked);
+        });
+        cb.indeterminate = false;
+      } else {
+        setSelectedItem(v, cb.checked);
+      }
+      updateImportBar();
+    });
+
+    const partBtn = row.querySelector('.part-toggle');
+    if (partBtn) {
+      partBtn.addEventListener('click', () => toggleParts(wrapper, v, partBtn));
+    }
+
+    wrapper.appendChild(row);
+    container.appendChild(wrapper);
+  }
+
+  async function toggleParts(wrapper, video, btn) {
+    const existing = wrapper.querySelector('.part-list');
+    if (existing) {
+      const hidden = existing.classList.toggle('hidden');
+      btn.classList.toggle('active', !hidden);
+      btn.querySelector('span:last-child').textContent = hidden ? '分P' : '收起';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.querySelector('span:last-child').textContent = '加载';
+    try {
+      const resp = await API.apiGet('/api/videos/' + encodeURIComponent(video.bvid) + '/parts');
+      if (resp.error) throw new Error(resp.error);
+      const parts = (resp.items || []).filter((p) => p.cid);
+      if (parts.length <= 1) {
+        toast('这个视频没有可展开的分P');
+        btn.style.display = 'none';
+        return;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'part-list';
+      const parentWasSelected = selected.has(itemKey(video));
+      if (parentWasSelected) setSelectedItem(video, false);
+
+      parts.forEach((part) => renderPartItem(list, wrapper, part, parentWasSelected));
+      wrapper.appendChild(list);
+      btn.classList.add('active');
+      btn.querySelector('span:last-child').textContent = '收起';
+      syncParentFromParts(wrapper);
+      updateImportBar();
+    } catch (e) {
+      toast('分P加载失败：' + (e.message || '未知错误'));
+      btn.querySelector('span:last-child').textContent = '分P';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderPartItem(container, wrapper, part, checkedByDefault) {
+    const div = document.createElement('div');
+    div.className = 'part-item';
+    const checked = checkedByDefault || selected.has(itemKey(part));
+    if (checked) setSelectedItem(part, true);
+    div.innerHTML =
+      '<input type="checkbox" class="part-check" ' +
+      (checked ? 'checked' : '') +
+      ' />' +
+      '<span class="part-index"></span>' +
+      '<div class="part-meta"><div class="part-title"></div><div class="part-sub"></div></div>';
+    div.querySelector('.part-index').textContent = 'P' + (part.page || '');
+    div.querySelector('.part-title').textContent = part.title || '未命名分P';
+    div.querySelector('.part-sub').textContent = fmtDuration(part.duration);
+
+    const cb = div.querySelector('.part-check');
+    cb._item = part;
+    cb.addEventListener('change', () => {
+      setSelectedItem(part, cb.checked);
+      syncParentFromParts(wrapper);
       updateImportBar();
     });
     container.appendChild(div);
+  }
+
+  function syncParentFromParts(wrapper) {
+    const parent = wrapper.querySelector('.parent-check');
+    const checks = Array.from(wrapper.querySelectorAll('.part-check'));
+    if (!parent || checks.length === 0) return;
+    const checkedCount = checks.filter((cb) => cb.checked).length;
+    parent.checked = checkedCount === checks.length;
+    parent.indeterminate = checkedCount > 0 && checkedCount < checks.length;
   }
 
   async function doSearch(reset) {
     if (reset) {
       searchPage = 1;
       $('search-results').innerHTML = '';
+      $('import-playlist').value = '';
+      selected.clear();
+      updateImportBar();
     }
     let r;
     try {
@@ -200,6 +331,54 @@
     $('search-more').style.display = results.length >= 20 ? 'block' : 'none';
     if (reset && results.length === 0) toast('无结果');
   }
+
+  function renderExtractResult(resp) {
+    const items = resp.items || [];
+    const status = $('url-extract-status');
+    const box = $('search-results');
+
+    box.innerHTML = '';
+    selected.clear();
+    $('search-more').style.display = 'none';
+    $('import-playlist').value = resp.playlist_title || '';
+
+    items.forEach((v) => renderVideoItem(box, v, true));
+    updateImportBar();
+
+    status.style.display = 'block';
+    status.textContent = items.length
+      ? '已提取 ' + items.length + ' 首，已默认全选'
+      : '未提取到可导入歌曲';
+    if (items.length === 0) toast('未提取到可导入歌曲');
+  }
+
+  $('url-extract-btn').addEventListener('click', async () => {
+    const url = $('url-input').value.trim();
+    const status = $('url-extract-status');
+    const btn = $('url-extract-btn');
+    if (!url) {
+      toast('请输入 URL');
+      return;
+    }
+
+    btn.disabled = true;
+    status.style.display = 'block';
+    status.textContent = '提取中…';
+    try {
+      const r = await API.apiPost('/api/extract', { url });
+      if (r.error) throw new Error(r.error);
+      renderExtractResult(r);
+    } catch (e) {
+      status.textContent = '提取失败：' + (e.message || '未知错误');
+      toast('提取失败');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('url-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('url-extract-btn').click();
+  });
 
   $('search-btn').addEventListener('click', () => {
     const kw = $('search-input').value.trim();
@@ -409,6 +588,45 @@
   }
   ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-interval'].forEach((id) => {
     $(id).addEventListener('change', saveSettings);
+  });
+
+  $('search-test-btn').addEventListener('click', async () => {
+    const keyword = $('search-test-input').value.trim();
+    const result = $('search-test-result');
+    const btn = $('search-test-btn');
+
+    result.style.display = 'block';
+    if (!keyword) {
+      result.style.color = 'var(--md-error, #b3261e)';
+      result.textContent = '请输入搜索关键字';
+      return;
+    }
+
+    btn.disabled = true;
+    result.style.color = 'var(--md-on-surface-variant, #666)';
+    result.textContent = '搜索中…';
+
+    try {
+      const resp = await API.apiPost('/api/search/topone', { keyword, quality: '320k' });
+      if (resp.code === 0 && resp.data) {
+        const d = resp.data;
+        result.style.color = 'var(--md-primary, #fb7299)';
+        result.textContent =
+          '搜索成功\n\n' +
+          '标题: ' + (d.title || '-') + '\n' +
+          '歌手: ' + (d.artist || '-') + '\n' +
+          '时长: ' + fmtDuration(d.duration) + '\n' +
+          'URL: ' + (d.url || '-');
+      } else {
+        result.style.color = 'var(--md-error, #b3261e)';
+        result.textContent = '未找到结果\n\n' + JSON.stringify(resp, null, 2);
+      }
+    } catch (e) {
+      result.style.color = 'var(--md-error, #b3261e)';
+      result.textContent = '请求失败：' + (e.message || '未知错误');
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   // 初始化

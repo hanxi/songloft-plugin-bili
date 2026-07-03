@@ -8,10 +8,11 @@ import { biliGet } from './client';
 import { getSettings, type Settings } from './store';
 import { playbackHeaders } from './consts';
 
-interface BiliSourceData {
+export interface BiliSourceData {
   bvid?: string;
   cid?: number;
   aid?: number;
+  page?: number;
 }
 
 interface DashAudio {
@@ -35,35 +36,39 @@ async function resolveCid(bvid: string): Promise<number> {
   return cid;
 }
 
+export async function resolveBiliAudioUrl(sourceData: BiliSourceData): Promise<{ url: string; headers: Record<string, string> }> {
+  const sd = sourceData;
+  if (!sd.bvid) throw new Error('source_data 缺少 bvid');
+
+  const cid = sd.cid || (await resolveCid(sd.bvid));
+  const settings = await getSettings();
+
+  const j = await biliGet(
+    '/x/player/wbi/playurl',
+    { bvid: sd.bvid, cid, fnval: 4048, fnver: 0, fourk: 1 },
+    { wbi: true },
+  );
+
+  const dash = j.data?.dash;
+  let url = '';
+  if (dash?.audio?.length) {
+    let chosen = pickAudio(dash.audio as DashAudio[], settings.audio_quality);
+    if (settings.enable_hires && dash.flac?.audio?.baseUrl) {
+      chosen = dash.flac.audio as DashAudio;
+    } else if (settings.enable_dolby && dash.dolby?.audio?.length) {
+      chosen = dash.dolby.audio[0] as DashAudio;
+    }
+    url = chosen?.baseUrl || '';
+  } else if (j.data?.durl?.[0]?.url) {
+    url = j.data.durl[0].url; // 老视频无 dash，整段 mp4
+  }
+
+  if (!url) throw new Error('未取到音频地址');
+  return { url, headers: playbackHeaders() };
+}
+
 export const musicUrlHandler = createMusicUrlHandler({
   resolveUrl: async (sourceData) => {
-    const sd = sourceData as BiliSourceData;
-    if (!sd.bvid) throw new Error('source_data 缺少 bvid');
-
-    const cid = sd.cid || (await resolveCid(sd.bvid));
-    const settings = await getSettings();
-
-    const j = await biliGet(
-      '/x/player/wbi/playurl',
-      { bvid: sd.bvid, cid, fnval: 4048, fnver: 0, fourk: 1 },
-      { wbi: true },
-    );
-
-    const dash = j.data?.dash;
-    let url = '';
-    if (dash?.audio?.length) {
-      let chosen = pickAudio(dash.audio as DashAudio[], settings.audio_quality);
-      if (settings.enable_hires && dash.flac?.audio?.baseUrl) {
-        chosen = dash.flac.audio as DashAudio;
-      } else if (settings.enable_dolby && dash.dolby?.audio?.length) {
-        chosen = dash.dolby.audio[0] as DashAudio;
-      }
-      url = chosen?.baseUrl || '';
-    } else if (j.data?.durl?.[0]?.url) {
-      url = j.data.durl[0].url; // 老视频无 dash，整段 mp4
-    }
-
-    if (!url) throw new Error('未取到音频地址');
-    return { url, headers: playbackHeaders() };
+    return resolveBiliAudioUrl(sourceData as BiliSourceData);
   },
 });

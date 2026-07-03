@@ -8,12 +8,13 @@ import {
   statusHandler,
   logoutHandler,
 } from './auth';
-import { searchVideosHandler, searchHandler } from './search';
+import { searchVideosHandler, searchHandler, toponeHandler } from './search';
 import { foldersHandler, folderContentHandler, folderImportHandler } from './favorites';
 import { importSongs } from './importer';
 import { startBatchDownload, getBatchTask, clearBatchTask } from './downloader';
 import { musicUrlHandler } from './music-url';
 import { getSettings, saveSettings } from './store';
+import { extractFromURL, extractVideoParts } from './extractor';
 import type { BiliVideo } from './search';
 
 const router = createRouter();
@@ -28,6 +29,26 @@ router.post('/api/logout', logoutHandler);
 // --- 搜索 ---
 router.post('/api/search/videos', searchVideosHandler); // UI 搜索
 router.post('/api/search', searchHandler); // 音源匹配
+router.post('/api/search/topone', toponeHandler);
+
+// --- URL 提取 ---
+router.post('/api/extract', async (req) => {
+  const { url } = JSON.parse(String(req.body)) as { url: string };
+  if (!url) return jsonResponse({ error: 'url is required' }, 400);
+  try {
+    return jsonResponse(await extractFromURL(url));
+  } catch (e: any) {
+    return jsonResponse({ error: e.message }, 500);
+  }
+});
+
+router.get('/api/videos/:bvid/parts', async (_req, params) => {
+  try {
+    return jsonResponse(await extractVideoParts(params.bvid));
+  } catch (e: any) {
+    return jsonResponse({ error: e.message }, 500);
+  }
+});
 
 // --- 收藏夹 ---
 router.get('/api/favorites', foldersHandler);
