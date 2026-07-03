@@ -15,7 +15,7 @@
     "songs.write"
   ],
   "updateUrl": "",
-  "download_url": "",
+  "download_url": "https://github.com/hanxi/songloft-plugin-bili/releases/download/v2026.7.3/bili.jsplugin.zip",
   "entryHash": "c629fbff5fb5e9b742cf6c98bd670c704df57d10ca314af68fa4ca82b0c8df92",
   "zipHash": "9bffd851e42a35eb7fe0a27c471c0e25495da72f0a6fdc9446399ed67daa1aaa"
 }
