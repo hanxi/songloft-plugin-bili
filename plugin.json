@@ -12,10 +12,11 @@
   "minHostVersion": "2.0.0",
   "permissions": [
     "storage",
+    "playlists.read",
     "songs.write"
   ],
   "updateUrl": "",
   "download_url": "https://github.com/hanxi/songloft-plugin-bili/releases/download/v2026.7.3/bili.jsplugin.zip",
-  "entryHash": "c629fbff5fb5e9b742cf6c98bd670c704df57d10ca314af68fa4ca82b0c8df92",
-  "zipHash": "9bffd851e42a35eb7fe0a27c471c0e25495da72f0a6fdc9446399ed67daa1aaa"
+  "entryHash": "888a3798501d370095894cd8c592ee452de02c948bf05b9f7fd5e327c2e7c279",
+  "zipHash": "50a03c624b35ce18077252b0f260772763eddb683f5921f83b50af5d29bae8b5"
 }

@@ -58,6 +58,7 @@ pnpm run validate    # 校验 plugin.json hashes
 | 权限 | 用途 |
 |------|------|
 | `storage` | 持久化登录 Cookie 与插件设置 |
+| `playlists.read` | 加载导入目标歌单列表 |
 | `songs.write` | 导入歌曲、调用 `songs.download` 下载到本地 |
 
 ## License
