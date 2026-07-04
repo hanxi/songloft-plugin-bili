@@ -255,7 +255,8 @@ textarea { min-height: 72px; resize: vertical; font-family: inherit; }
   background: var(--md-surface, #fff);
   box-shadow: 0 -2px 8px rgba(0,0,0,0.12);
 }
-.import-bar input { flex: 1; }
+.import-bar input,
+.import-bar select { flex: 1; min-width: 0; }
 
 /* 进度 */
 .progress { height: 8px; background: var(--md-surface-variant, #eee); border-radius: 4px; overflow: hidden; }
@@ -296,6 +297,7 @@ textarea { min-height: 72px; resize: vertical; font-family: inherit; }
   .inline-bar { align-items: stretch; flex-direction: column; }
   .inline-bar .btn { width: 100%; }
   .import-bar { flex-wrap: wrap; }
-  .import-bar input { flex-basis: 100%; }
+  .import-bar input,
+  .import-bar select { flex-basis: 100%; }
   .part-list { margin-left: 28px; }
 }

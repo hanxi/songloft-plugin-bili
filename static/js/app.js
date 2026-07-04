@@ -310,7 +310,6 @@
     if (reset) {
       searchPage = 1;
       $('search-results').innerHTML = '';
-      $('import-playlist').value = '';
       selected.clear();
       updateImportBar();
     }
@@ -340,7 +339,12 @@
     box.innerHTML = '';
     selected.clear();
     $('search-more').style.display = 'none';
-    $('import-playlist').value = resp.playlist_title || '';
+    // 提取到合集/收藏夹标题时，默认切到「新建歌单」并预填标题
+    if (resp.playlist_title) {
+      playlistSelect.value = NEW_PLAYLIST;
+      syncPlaylistNameVisibility();
+      playlistNameInput.value = resp.playlist_title;
+    }
 
     items.forEach((v) => renderVideoItem(box, v, true));
     updateImportBar();
@@ -394,15 +398,73 @@
     doSearch(false);
   });
 
+  // ---- 歌单选择 ----
+  const NEW_PLAYLIST = '__new__';
+  const playlistSelect = $('import-playlist-select');
+  const playlistNameInput = $('import-playlist');
+
+  function syncPlaylistNameVisibility() {
+    const isNew = playlistSelect.value === NEW_PLAYLIST;
+    playlistNameInput.style.display = isNew ? '' : 'none';
+    if (!isNew) playlistNameInput.value = '';
+  }
+
+  playlistSelect.addEventListener('change', () => {
+    syncPlaylistNameVisibility();
+    API.apiPost('/api/import-prefs', { last_playlist: playlistSelect.value }).catch(() => {});
+  });
+
+  async function loadPlaylists() {
+    let data;
+    try {
+      data = await API.apiGet('/api/playlists');
+    } catch (e) {
+      return;
+    }
+    const keep = playlistSelect.value; // 刷新时尽量保留当前选择
+    playlistSelect.innerHTML = '';
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '不加入歌单';
+    playlistSelect.appendChild(optNone);
+    (data.playlists || []).forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = String(p.id);
+      opt.textContent = p.name + '（' + (p.song_count || 0) + ' 首）';
+      playlistSelect.appendChild(opt);
+    });
+    const optNew = document.createElement('option');
+    optNew.value = NEW_PLAYLIST;
+    optNew.textContent = '＋ 新建歌单';
+    playlistSelect.appendChild(optNew);
+
+    const want = keep || (data.last_playlist != null ? String(data.last_playlist) : '');
+    if (want && Array.from(playlistSelect.options).some((o) => o.value === want)) {
+      playlistSelect.value = want;
+    }
+    syncPlaylistNameVisibility();
+  }
+
   // 导入
   async function importSelected(withDownload) {
     const items = Array.from(selected.values());
     if (items.length === 0) return;
-    const playlistName = $('import-playlist').value.trim() || undefined;
+    const sel = playlistSelect.value;
+    const body = { items };
+    if (sel === NEW_PLAYLIST) {
+      const name = playlistNameInput.value.trim();
+      if (!name) {
+        toast('请输入新歌单名');
+        return;
+      }
+      body.playlist_name = name;
+    } else if (sel) {
+      body.playlist_id = parseInt(sel, 10);
+    }
     const path = withDownload ? '/api/import-download' : '/api/import';
     let r;
     try {
-      r = await API.apiPost(path, { items, playlist_name: playlistName });
+      r = await API.apiPost(path, body);
     } catch (e) {
       toast('导入失败');
       return;
@@ -411,10 +473,24 @@
       toast('导入失败：' + r.error);
       return;
     }
-    toast('已导入 ' + r.count + ' 首' + (withDownload ? '，开始下载' : ''));
+    const total = r.total != null ? r.total : r.count;
+    let msg = '已导入 ' + r.count + '/' + total + ' 首';
+    if (r.failed) msg += '（' + r.failed + ' 首失败）';
+    if (withDownload) msg += '，开始下载';
+    toast(msg);
     selected.clear();
     updateImportBar();
     document.querySelectorAll('#search-results input[type=checkbox]').forEach((c) => (c.checked = false));
+    // 刚新建的歌单：切到该歌单方便后续追加；同时刷新列表与数量
+    if (r.playlist_id) {
+      await loadPlaylists();
+      if (Array.from(playlistSelect.options).some((o) => o.value === String(r.playlist_id))) {
+        playlistSelect.value = String(r.playlist_id);
+        syncPlaylistNameVisibility();
+      }
+    } else {
+      loadPlaylists();
+    }
     if (withDownload) {
       document.querySelector('.tab-btn[data-tab=download]').click();
     }
@@ -631,4 +707,5 @@
 
   // 初始化
   refreshStatus();
+  loadPlaylists();
 })();

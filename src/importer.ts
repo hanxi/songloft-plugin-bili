@@ -13,6 +13,8 @@ interface ImportedSong {
 interface ImportResult {
   songs: ImportedSong[];
   playlist_id?: number;
+  total: number;
+  failed: number;
 }
 
 export async function importSongs(
@@ -46,7 +48,7 @@ export async function importSongs(
   }
 
   let finalPlaylistId = playlistId;
-  if (playlistName && !finalPlaylistId) {
+  if (playlistName && !finalPlaylistId && allSongs.length > 0) {
     const resp = await callHostAPI<{ id: number }>('POST', '/api/v1/playlists', {
       name: playlistName,
       type: 'normal',
@@ -62,5 +64,10 @@ export async function importSongs(
     }
   }
 
-  return { songs: allSongs, playlist_id: finalPlaylistId };
+  return {
+    songs: allSongs,
+    playlist_id: finalPlaylistId,
+    total: items.length,
+    failed: items.length - allSongs.length,
+  };
 }

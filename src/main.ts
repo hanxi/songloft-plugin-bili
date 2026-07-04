@@ -65,7 +65,12 @@ router.post('/api/import', async (req) => {
   if (!items || items.length === 0) return jsonResponse({ error: 'items is required' }, 400);
   try {
     const result = await importSongs(items, playlist_name, playlist_id);
-    return jsonResponse({ count: result.songs.length, playlist_id: result.playlist_id });
+    return jsonResponse({
+      count: result.songs.length,
+      total: result.total,
+      failed: result.failed,
+      playlist_id: result.playlist_id,
+    });
   } catch (e: any) {
     return jsonResponse({ error: e.message }, 500);
   }
@@ -83,6 +88,8 @@ router.post('/api/import-download', async (req) => {
     await startBatchDownload(result.songs.map((s) => s.id));
     return jsonResponse({
       count: result.songs.length,
+      total: result.total,
+      failed: result.failed,
       playlist_id: result.playlist_id,
       download_started: true,
     });
@@ -127,6 +134,23 @@ router.get('/api/settings', async () => jsonResponse(await getSettings()));
 router.post('/api/settings', async (req) => {
   const body = JSON.parse(String(req.body));
   return jsonResponse(await saveSettings(body));
+});
+
+// --- 歌单 ---
+const LAST_PLAYLIST_KEY = 'bili_last_playlist';
+
+router.get('/api/playlists', async () => {
+  // 导入普通歌曲，排除电台歌单
+  const all = await songloft.playlists.list();
+  const playlists = all.filter((p: any) => p.type !== 'radio');
+  const lastPlaylist = (await songloft.storage.get(LAST_PLAYLIST_KEY)) ?? '';
+  return jsonResponse({ playlists, last_playlist: lastPlaylist });
+});
+
+router.post('/api/import-prefs', async (req) => {
+  const { last_playlist } = JSON.parse(String(req.body)) as { last_playlist?: string };
+  await songloft.storage.set(LAST_PLAYLIST_KEY, last_playlist ?? '');
+  return jsonResponse({ ok: true });
 });
 
 // --- 生命周期 ---
