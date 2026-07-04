@@ -8,12 +8,12 @@ import { biliGet } from './client';
 import { getSettings, type Settings } from './store';
 import { playbackHeaders } from './consts';
 
-export interface BiliSourceData {
+export type BiliSourceData = {
   bvid?: string;
   cid?: number;
   aid?: number;
   page?: number;
-}
+};
 
 interface DashAudio {
   id: number;

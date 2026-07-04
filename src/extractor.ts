@@ -45,7 +45,7 @@ export async function extractVideoParts(bvid: string): Promise<ExtractResult> {
 }
 
 async function extractVideo(ref: VideoRef): Promise<ExtractResult> {
-  const params = ref.bvid ? { bvid: ref.bvid } : { aid: ref.aid || 0 };
+  const params: Record<string, string | number> = ref.bvid ? { bvid: ref.bvid } : { aid: ref.aid || 0 };
   const j = await biliGet('/x/web-interface/view', params);
   const data = j.data || {};
   const items = mapArchivePages(data);
