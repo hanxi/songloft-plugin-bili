@@ -1,6 +1,6 @@
 {
   "name": "songloft-plugin-bili",
-  "version": "2026.7.4",
+  "version": "2026.7.6",
   "description": "哔哩哔哩音乐导入插件（搜索/收藏夹/播放/下载）",
   "private": true,
   "scripts": {
