@@ -7,7 +7,7 @@ import { jsonResponse, createSearchHandler } from '@songloft/plugin-sdk';
 import type { HTTPRequest, RouteHandler, SearchResultItem } from '@songloft/plugin-sdk';
 import { biliGet } from './client';
 import { ensureBuvid } from './auth';
-import { resolveBiliAudioUrl, type BiliSourceData } from './music-url';
+import { type BiliSourceData } from './music-url';
 
 export interface BiliVideo {
   bvid: string;
@@ -24,6 +24,14 @@ export interface BiliVideo {
 
 function cleanTitle(t: string): string {
   return (t || '').replace(/<[^>]+>/g, '');
+}
+
+// hint 匹配用的标题/艺术家归一化：转小写并剥离空格、装饰性括号与标点，
+// 使「明天，你好」「《明天你好》」这类带装饰的 B 站标题能与纯歌名 hint 比对。
+function normalizeForMatch(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[\s　《》【】「」『』〔〕〈〉（）()\[\]{}，,。.、·!！?？~～—\-_:：;；'"'"…]/g, '');
 }
 
 /** 时长 "MM:SS" / "HH:MM:SS" → 秒；数字直接返回 */
@@ -67,6 +75,12 @@ export function dedupKeyForVideo(v: BiliVideo): string {
   return `bili:${v.bvid}`;
 }
 
+// 付费/充电专属视频无法匿名解析播放，从搜索结果剔除（零额外请求）。
+// is_pay: 付费稿件(番剧/影视/课程)；is_charge_video: UP 充电专属；badgepay: 付费角标。
+function isPlayableVideo(x: any): boolean {
+  return !x.is_pay && !x.is_charge_video && !x.badgepay;
+}
+
 export async function searchVideos(keyword: string, page = 1): Promise<BiliVideo[]> {
   await ensureBuvid();
   const j = await biliGet(
@@ -76,7 +90,7 @@ export async function searchVideos(keyword: string, page = 1): Promise<BiliVideo
   );
   const list = (j.data?.result || []) as any[];
   return list
-    .filter((x) => x.bvid)
+    .filter((x) => x.bvid && isPlayableVideo(x))
     .map((x) => ({
       bvid: x.bvid,
       aid: x.aid,
@@ -135,9 +149,11 @@ export const toponeHandler: RouteHandler = async (req) => {
     return jsonResponse({ code: 404, msg: 'search failed', data: null });
   }
 
+  // hint 仅作软排序权重，不淘汰候选：B 站搜索结果本身已按相关度排序，
+  // hint 命中的候选上浮；都不命中时稳定排序保留原始相关度，回退到最相关结果，
+  // 避免「hint 标题带装饰导致零分」被误判为搜不到。
   const candidates = results
     .map((item) => ({ item, score: scoreCandidate(item, hint) }))
-    .filter((x) => x.score >= 0.4)
     .sort((a, b) => b.score - a.score);
 
   if (candidates.length === 0) {
@@ -147,9 +163,11 @@ export const toponeHandler: RouteHandler = async (req) => {
   let lastError = '';
   for (const { item } of candidates) {
     try {
+      // 插件型音源：只补齐 cid 写入 source_data，不预解析 playurl。
+      // 真实音频地址由主程序播放时经 /api/music/url 懒解析（带 Referer 防盗链）；
+      // topone 返回的 url 会被主程序 MarshalJSON 覆盖为 /songs/{id}/play，预解析纯属浪费且拖慢语音关键路径。
       const withPage = await ensureFirstPage(item);
       const sourceData = sourceDataForVideo(withPage);
-      const resolved = await resolveBiliAudioUrl(sourceData);
 
       return jsonResponse({
         code: 0,
@@ -160,7 +178,7 @@ export const toponeHandler: RouteHandler = async (req) => {
           album: '',
           duration: withPage.duration,
           cover_url: withPage.cover,
-          url: resolved.url,
+          url: '',
           plugin_entry_path: 'bili',
           source_data: sourceData,
           dedup_key: dedupKeyForVideo(withPage),
@@ -171,7 +189,7 @@ export const toponeHandler: RouteHandler = async (req) => {
     }
   }
 
-  songloft.log.warn(`[search/topone] 所有候选 URL 获取均失败，最后错误: ${lastError}`);
+  songloft.log.warn(`[search/topone] 所有候选首帧信息获取失败，最后错误: ${lastError}`);
   return jsonResponse({ code: 404, msg: 'song not found', data: null });
 };
 
@@ -179,16 +197,22 @@ function scoreCandidate(item: BiliVideo, hint?: { title?: string; artist?: strin
   if (!hint) return 1;
 
   let score = 0;
-  const title = item.title || '';
-  const artist = item.author || '';
+  const title = normalizeForMatch(item.title);
+  const artist = normalizeForMatch(item.author);
 
   if (hint.title) {
-    if (title === hint.title) score += 0.5;
-    else if (title.includes(hint.title) || hint.title.includes(title)) score += 0.3;
+    const h = normalizeForMatch(hint.title);
+    if (h) {
+      if (title === h) score += 0.5;
+      else if (title.includes(h) || h.includes(title)) score += 0.3;
+    }
   }
   if (hint.artist) {
-    if (artist === hint.artist) score += 0.3;
-    else if (artist.includes(hint.artist) || hint.artist.includes(artist)) score += 0.15;
+    const h = normalizeForMatch(hint.artist);
+    if (h) {
+      if (artist === h) score += 0.3;
+      else if (artist.includes(h) || h.includes(artist)) score += 0.15;
+    }
   }
   if (hint.duration && item.duration) {
     const diff = Math.abs(hint.duration - item.duration);
