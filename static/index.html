@@ -131,6 +131,7 @@
       <div class="field">
         <label>下载路径模板</label>
         <input id="set-template" type="text" placeholder="bili/{artist}/{title}" />
+        <div class="field-hint">相对音乐库目录的保存路径，无需写扩展名（系统自动补全）。可用变量：{title} 标题（必填）、{artist} 艺术家、{album} 专辑、{year} 年份、{genre} 流派。留空则使用默认值 bili/{artist}/{title}。提示：来自 B 站的歌曲通常只有 {title}、{artist}，{album}/{year}/{genre} 可能为空。</div>
       </div>
       <label class="chk"><input type="checkbox" id="set-embed" /> 下载时嵌入元数据</label>
       <div class="field">

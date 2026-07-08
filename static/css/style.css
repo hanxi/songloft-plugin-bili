@@ -245,6 +245,7 @@ textarea { min-height: 72px; resize: vertical; font-family: inherit; }
 
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--md-on-surface-variant, #666); }
+.field-hint { margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--md-on-surface-variant, #666); }
 .chk { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 14px; cursor: pointer; }
 .chk input { width: 18px; height: 18px; }
 
