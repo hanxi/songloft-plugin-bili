@@ -153,5 +153,33 @@ router.post('/api/import-prefs', async (req) => {
   return jsonResponse({ ok: true });
 });
 
+// --- 向 miot 注册为「外部搜索源候选」（可选增强） ---
+// 延迟 + 重试调用，避免与 miot 同时启动时对方尚未就绪的竞态；
+// miot 未安装 / host 不支持 comm 时静默跳过，绝不阻塞自身功能。
+function registerSearchProviderToMiot(): void {
+  let attempts = 0;
+  const tryRegister = async () => {
+    attempts++;
+    try {
+      if (!songloft.comm || typeof songloft.comm.call !== 'function') return; // 旧 host 无 comm
+      await songloft.comm.call('miot', 'register-search-provider', {
+        name: '哔哩音乐',
+        searchPath: '/api/search/topone',
+      });
+      songloft.log.info('[search] 已向 miot 注册搜索源候选');
+    } catch (e) {
+      if (attempts < 5) {
+        setTimeout(tryRegister, 3000);
+      } else {
+        songloft.log.info('[search] miot 未安装/未就绪，放弃注册: ' + String(e));
+      }
+    }
+  };
+  setTimeout(tryRegister, 2000);
+}
+
 // --- 生命周期 ---
+globalThis.onInit = async () => {
+  registerSearchProviderToMiot();
+};
 globalThis.onHTTPRequest = (req) => router.handle(req);
