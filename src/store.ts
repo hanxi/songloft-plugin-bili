@@ -10,6 +10,10 @@ export interface Settings {
   path_template: string;
   embed_metadata: boolean;
   download_interval: number;
+  // 下载转码：''=原始(不转码，B站源通常为 .mov 无法刮削歌词)；mp3/m4a=转成标准音频容器
+  transcode_format: '' | 'mp3' | 'm4a';
+  // 转码码率：0=默认最高质量；128/192/320=指定 CBR。transcode_format 为 '' 时忽略
+  transcode_bitrate: 0 | 128 | 192 | 320;
 }
 
 const DEFAULTS: Settings = {
@@ -19,6 +23,8 @@ const DEFAULTS: Settings = {
   path_template: 'bili/{artist}/{title}',
   embed_metadata: true,
   download_interval: 2,
+  transcode_format: '',
+  transcode_bitrate: 0,
 };
 
 export async function getSettings(): Promise<Settings> {

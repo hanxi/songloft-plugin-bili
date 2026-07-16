@@ -34,6 +34,8 @@ export async function startBatchDownload(songIds: number[]): Promise<void> {
   const template = settings.path_template;
   const embedMetadata = settings.embed_metadata;
   const interval = settings.download_interval;
+  const transcodeFormat = settings.transcode_format;
+  const transcodeBitrate = settings.transcode_bitrate;
 
   batchTask = { results: [], current: 0, total: songIds.length, done: false };
 
@@ -45,6 +47,9 @@ export async function startBatchDownload(songIds: number[]): Promise<void> {
         const result = await songloft.songs.download(songIds[i], {
           path_template: template,
           embed_metadata: embedMetadata,
+          // 转码格式非空时才带上 format/quality（宿主侧空则不转码，保留源格式）
+          format: transcodeFormat || undefined,
+          quality: transcodeFormat && transcodeBitrate ? String(transcodeBitrate) : undefined,
         });
         batchTask.results.push({ song_id: songIds[i], status: result.status, path: result.path });
       } catch (e: any) {

@@ -639,7 +639,15 @@
     $('set-hires').checked = !!s.enable_hires;
     $('set-template').value = s.path_template || 'bili/{artist}/{title}';
     $('set-embed').checked = s.embed_metadata !== false;
+    $('set-format').value = s.transcode_format || '';
+    $('set-bitrate').value = String(s.transcode_bitrate != null ? s.transcode_bitrate : 0);
     $('set-interval').value = s.download_interval != null ? s.download_interval : 2;
+    syncBitrateEnabled();
+  }
+
+  // 未选择转码格式时禁用码率下拉
+  function syncBitrateEnabled() {
+    $('set-bitrate').disabled = !$('set-format').value;
   }
 
   let saveTimer = 0;
@@ -652,6 +660,8 @@
         enable_hires: $('set-hires').checked,
         path_template: $('set-template').value.trim() || 'bili/{artist}/{title}',
         embed_metadata: $('set-embed').checked,
+        transcode_format: $('set-format').value,
+        transcode_bitrate: parseInt($('set-bitrate').value, 10) || 0,
         download_interval: parseInt($('set-interval').value, 10) || 0,
       };
       try {
@@ -662,9 +672,10 @@
       }
     }, 500);
   }
-  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-interval'].forEach((id) => {
+  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-format', 'set-bitrate', 'set-interval'].forEach((id) => {
     $(id).addEventListener('change', saveSettings);
   });
+  $('set-format').addEventListener('change', syncBitrateEnabled);
 
   $('search-test-btn').addEventListener('click', async () => {
     const keyword = $('search-test-input').value.trim();

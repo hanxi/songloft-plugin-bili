@@ -135,6 +135,25 @@
       </div>
       <label class="chk"><input type="checkbox" id="set-embed" /> 下载时嵌入元数据</label>
       <div class="field">
+        <label>下载转码格式</label>
+        <select id="set-format">
+          <option value="">原始（保留源格式）</option>
+          <option value="mp3">MP3</option>
+          <option value="m4a">M4A</option>
+        </select>
+        <div class="field-hint">B 站下载源通常是 .mov 视频容器，可正常播放但难以刮削歌词。选 MP3/M4A 会在下载时转码为标准音频容器，只保留转码结果。选「原始」则保留 .mov。转码依赖服务端 ffmpeg，缺失时自动回退保留原始格式。</div>
+      </div>
+      <div class="field">
+        <label>转码码率</label>
+        <select id="set-bitrate">
+          <option value="0">默认（最高质量）</option>
+          <option value="128">128 kbps</option>
+          <option value="192">192 kbps</option>
+          <option value="320">320 kbps</option>
+        </select>
+        <div class="field-hint">仅在选择了转码格式时生效。</div>
+      </div>
+      <div class="field">
         <label>下载间隔（秒）</label>
         <input id="set-interval" type="number" min="0" max="30" />
       </div>
