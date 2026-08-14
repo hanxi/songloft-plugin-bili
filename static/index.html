@@ -43,6 +43,7 @@
       <div id="import-bar" class="import-bar" style="display:none">
         <select id="import-playlist-select"></select>
         <input id="import-playlist" type="text" placeholder="新建歌单名" style="display:none" />
+        <input id="import-artist" type="text" placeholder="艺术家（留空自动识别）" />
         <button id="import-only" class="btn">仅导入</button>
         <button id="import-download" class="btn btn-primary">导入并下载</button>
       </div>
@@ -61,6 +62,7 @@
           <button id="fav-back" class="btn">← 返回</button>
           <span id="fav-title" class="bar-title"></span>
           <label class="chk"><input type="checkbox" id="fav-as-playlist" checked /> 建为歌单</label>
+          <input id="fav-artist" type="text" placeholder="艺术家（留空自动识别）" class="fav-artist-input" />
           <button id="fav-import" class="btn btn-primary">整夹导入</button>
         </div>
         <div id="fav-content" class="list"></div>

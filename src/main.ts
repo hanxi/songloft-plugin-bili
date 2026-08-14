@@ -57,14 +57,15 @@ router.post('/api/favorites/:id/import', folderImportHandler);
 
 // --- 导入 ---
 router.post('/api/import', async (req) => {
-  const { items, playlist_name, playlist_id } = JSON.parse(String(req.body)) as {
+  const { items, playlist_name, playlist_id, artist_override } = JSON.parse(String(req.body)) as {
     items: BiliVideo[];
     playlist_name?: string;
     playlist_id?: number;
+    artist_override?: string;
   };
   if (!items || items.length === 0) return jsonResponse({ error: 'items is required' }, 400);
   try {
-    const result = await importSongs(items, playlist_name, playlist_id);
+    const result = await importSongs(items, playlist_name, playlist_id, artist_override);
     return jsonResponse({
       count: result.songs.length,
       total: result.total,
@@ -77,14 +78,15 @@ router.post('/api/import', async (req) => {
 });
 
 router.post('/api/import-download', async (req) => {
-  const { items, playlist_name, playlist_id } = JSON.parse(String(req.body)) as {
+  const { items, playlist_name, playlist_id, artist_override } = JSON.parse(String(req.body)) as {
     items: BiliVideo[];
     playlist_name?: string;
     playlist_id?: number;
+    artist_override?: string;
   };
   if (!items || items.length === 0) return jsonResponse({ error: 'items is required' }, 400);
   try {
-    const result = await importSongs(items, playlist_name, playlist_id);
+    const result = await importSongs(items, playlist_name, playlist_id, artist_override);
     await startBatchDownload(result.songs.map((s) => s.id));
     return jsonResponse({
       count: result.songs.length,

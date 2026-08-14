@@ -76,7 +76,7 @@ export const folderContentHandler: RouteHandler = async (_req, params) => {
   }
 };
 
-// POST /api/favorites/:id/import  body { title?, as_playlist? } → 整夹导入
+// POST /api/favorites/:id/import  body { title?, as_playlist?, artist_override? } → 整夹导入
 export const folderImportHandler: RouteHandler = async (req, params) => {
   try {
     const mediaId = parseInt(params.id, 10);
@@ -85,7 +85,8 @@ export const folderImportHandler: RouteHandler = async (req, params) => {
     const items = await fetchFolderItems(mediaId, true, 1);
     if (items.length === 0) return jsonResponse({ count: 0 });
     const playlistName = body.as_playlist ? String(body.title || `B站收藏夹`) : undefined;
-    const result = await importSongs(items, playlistName);
+    const artistOverride = body.artist_override ? String(body.artist_override).trim() : undefined;
+    const result = await importSongs(items, playlistName, undefined, artistOverride);
     return jsonResponse({ count: result.songs.length, playlist_id: result.playlist_id });
   } catch (e: any) {
     return jsonResponse({ error: e.message }, 500);

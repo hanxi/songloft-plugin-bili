@@ -461,6 +461,8 @@
     } else if (sel) {
       body.playlist_id = parseInt(sel, 10);
     }
+    const artistOverride = $('import-artist').value.trim();
+    if (artistOverride) body.artist_override = artistOverride;
     const path = withDownload ? '/api/import-download' : '/api/import';
     let r;
     try {
@@ -571,13 +573,16 @@
   $('fav-import').addEventListener('click', async () => {
     if (!currentFolder) return;
     const asPlaylist = $('fav-as-playlist').checked;
+    const artistOverride = $('fav-artist').value.trim();
     toast('正在导入整个收藏夹…');
     let r;
+    const reqBody = {
+      as_playlist: asPlaylist,
+      title: currentFolder.title,
+    };
+    if (artistOverride) reqBody.artist_override = artistOverride;
     try {
-      r = await API.apiPost('/api/favorites/' + currentFolder.id + '/import', {
-        as_playlist: asPlaylist,
-        title: currentFolder.title,
-      });
+      r = await API.apiPost('/api/favorites/' + currentFolder.id + '/import', reqBody);
     } catch (e) {
       toast('导入失败');
       return;

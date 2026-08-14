@@ -257,8 +257,8 @@ textarea { min-height: 72px; resize: vertical; font-family: inherit; }
   position: sticky;
   top: 8px;
   z-index: 30;
-  display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr) max-content max-content;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin: 0 0 12px;
@@ -271,13 +271,15 @@ textarea { min-height: 72px; resize: vertical; font-family: inherit; }
 html.embed .import-bar { top: 56px; }
 .import-bar select {
   min-width: 0;
+  flex: 1 1 140px;
 }
 .import-bar input {
   min-width: 0;
+  flex: 1 1 120px;
 }
 .import-bar .btn {
-  width: 100%;
-  min-width: max-content;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 #import-playlist-select {
   cursor: pointer;
@@ -337,11 +339,16 @@ html.embed .tab-btn {
 }
 .toast.show { opacity: 1; }
 
+/* 收藏夹艺术家输入 */
+.fav-artist-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 180px;
+}
+
 @media (max-width: 640px) {
-  .import-bar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .import-bar .btn { min-width: 0; }
+  .import-bar input, .import-bar select { flex-basis: calc(50% - 4px); }
+  .fav-artist-input { max-width: none; }
 }
 
 @media (max-width: 520px) {
