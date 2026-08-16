@@ -12,8 +12,8 @@ importers:
         specifier: ^2.12.1
         version: 2.12.1
       '@songloft/plugin-sdk':
-        specifier: ^2.12.1
-        version: 2.12.1
+        specifier: ^2.13.8
+        version: 2.13.8
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -205,8 +205,8 @@ packages:
     resolution: {integrity: sha512-t1OfDD3X4NV3+7o337GnOItRgAKuH2bv46dKsKA1hCldZO3o0/Gv+djhBOp2/EVKrVlPPBiMTS+lk5MSs0e+Mg==}
     hasBin: true
 
-  '@songloft/plugin-sdk@2.12.1':
-    resolution: {integrity: sha512-KJ1j+iAwItmwSG02xEADPpLRVag1oPv7yNT58j2duOlm8Zl3jG/DupeVi+HOUxVtX2j021AJGXQq7BuLsC1aBg==}
+  '@songloft/plugin-sdk@2.13.8':
+    resolution: {integrity: sha512-4lD7oYq3PDrXe/eh5MnlPjXNlILsHwaBK7FmrwW14hhyYpEcOjHrrMrVk1l14RqdhsCOrWK+owyCOxxWTnsRJw==}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -442,7 +442,7 @@ snapshots:
       glob: 11.1.0
       jszip: 3.10.1
 
-  '@songloft/plugin-sdk@2.12.1': {}
+  '@songloft/plugin-sdk@2.13.8': {}
 
   balanced-match@4.0.4: {}
 

@@ -2,6 +2,12 @@
 
 // Cookie 与设置的持久化（songloft.storage）。
 // Cookie 以 map 形式存储，序列化为 "k=v; k2=v2" 请求头。
+//
+// 名值对的解析/序列化用 SDK 的 parseCookieHeader / stringifyCookieHeader
+// （songloft-org/songloft#401）。注意这里处理的是**请求**头 Cookie，
+// 与 auth.ts 里解析**响应**头 Set-Cookie 的 parseSetCookie 语义不同，别混用。
+
+import { parseCookieHeader, stringifyCookieHeader } from '@songloft/plugin-sdk';
 
 export interface Settings {
   audio_quality: 'high' | 'medium' | 'low';
@@ -40,27 +46,12 @@ export async function saveSettings(partial: Partial<Settings>): Promise<Settings
 
 // ---- Cookie ----
 
-export function parseCookieString(s: string): Record<string, string> {
-  const m: Record<string, string> = {};
-  for (const part of s.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx === -1) continue;
-    const k = part.slice(0, idx).trim();
-    const v = part.slice(idx + 1).trim();
-    if (k) m[k] = v;
-  }
-  return m;
-}
-
 export async function getCookieMap(): Promise<Record<string, string>> {
   return ((await songloft.storage.get('cookie')) as Record<string, string> | null) || {};
 }
 
 export async function getCookieString(): Promise<string> {
-  const m = await getCookieMap();
-  return Object.keys(m)
-    .map((k) => `${k}=${m[k]}`)
-    .join('; ');
+  return stringifyCookieHeader(await getCookieMap());
 }
 
 /** 合并式写入（用于登录/追加 buvid），保留已有键 */
@@ -72,7 +63,7 @@ export async function mergeCookies(updates: Record<string, string>): Promise<voi
 
 /** 覆盖式写入（用于手动粘贴 Cookie） */
 export async function setCookieFromString(s: string): Promise<void> {
-  await songloft.storage.set('cookie', parseCookieString(s));
+  await songloft.storage.set('cookie', parseCookieHeader(s));
 }
 
 export async function clearCookie(): Promise<void> {

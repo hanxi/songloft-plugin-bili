@@ -4,7 +4,7 @@
 // 二维码流程：generate 申请 → 前端渲染二维码 → poll 轮询扫码状态 →
 //   成功后从 poll 响应的 data.url 查询参数(优先)或 Set-Cookie 提取 SESSDATA 等，存入 storage。
 
-import { jsonResponse, parseQuery } from '@songloft/plugin-sdk';
+import { jsonResponse, parseQuery, getSetCookie, parseSetCookie } from '@songloft/plugin-sdk';
 import type { RouteHandler } from '@songloft/plugin-sdk';
 import { UA, REFERER, API_BASE, PASSPORT_BASE } from './consts';
 import { biliGet } from './client';
@@ -46,20 +46,19 @@ function cookiesFromUrl(url: string): Record<string, string> {
   return out;
 }
 
+// 从 Set-Cookie 响应头提取登录态 Cookie。
+//
+// 走 SDK 的 getSetCookie + parseSetCookie（songloft-org/songloft#401），
+// 取代原先「手工找 set-cookie 键 + 对折叠串跑 name=([^;,]+) 正则」的做法。
+// 原做法两个缺陷（均已实测复现）：
+//   1. 正则是子串匹配 —— 网关下发 buvid_sid=xxx 时会被误认成 sid（实际会踩到）；
+//   2. 值里的裸逗号被 [^;,] 截断 —— B 站目前对值做 percent-encode，
+//      且 RFC 6265 的 cookie-octet 本就不含逗号，属理论缺陷。
+// 现在按 name 精确比对，两者都不存在。
 function cookiesFromSetCookie(resp: Response): Record<string, string> {
   const out: Record<string, string> = {};
-  const h = (resp.headers as unknown as Record<string, string>) || {};
-  let raw = '';
-  for (const k of Object.keys(h)) {
-    if (k.toLowerCase() === 'set-cookie') {
-      raw = h[k];
-      break;
-    }
-  }
-  if (!raw) return out;
-  for (const name of LOGIN_COOKIE_NAMES) {
-    const mm = raw.match(new RegExp(name + '=([^;,]+)'));
-    if (mm) out[name] = mm[1];
+  for (const c of parseSetCookie(getSetCookie(resp), PASSPORT_BASE)) {
+    if (LOGIN_COOKIE_NAMES.includes(c.name)) out[c.name] = c.value;
   }
   return out;
 }
