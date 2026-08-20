@@ -23,11 +23,20 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
 
+  // 反代 BASE_PATH 子路径部署下，硬编码的绝对路径（以 "/" 开头）会绕过 BASE_PATH
+  // 直接打到域名根——这类绝对路径不受 <base href> 影响（WebF 下 <base href> 本身
+  // 也完全不生效，见 docs/webf/upstream-issues.md #2，不能依赖它）。从当前页面路径里
+  // 找出插件路由段之前的部分即为 BASE_PATH 前缀（songloft-org/songloft#407）。
+  function hostPathPrefix() {
+    const match = window.location.pathname.match(/^(.*)\/api\/v1\/jsplugin\/[^/]+/);
+    return match ? match[1] : '';
+  }
+
   function proxyImg(url) {
     if (!url) return '';
     const token = API.getAuthToken ? API.getAuthToken() : '';
     return token
-      ? '/api/v1/proxy?url=' + encodeURIComponent(url) + '&access_token=' + encodeURIComponent(token)
+      ? hostPathPrefix() + '/api/v1/proxy?url=' + encodeURIComponent(url) + '&access_token=' + encodeURIComponent(token)
       : url;
   }
 
