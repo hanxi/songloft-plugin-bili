@@ -73,10 +73,40 @@
     <section id="tab-download" class="tab-panel">
       <div id="download-empty" class="hint">暂无下载任务。</div>
       <div id="download-progress" style="display:none">
-        <div class="progress-text"><span id="dl-current">0</span>/<span id="dl-total">0</span>
-          （成功 <span id="dl-success">0</span>，失败 <span id="dl-failed">0</span>）</div>
+        <div class="dl-header">
+          <span class="dl-title">下载进度</span>
+          <span id="dl-status-badge" class="dl-badge">进行中</span>
+        </div>
         <div class="progress"><div id="dl-bar" class="progress-inner"></div></div>
-        <button id="dl-clear" class="btn" style="margin-top:12px">清除</button>
+        <div class="dl-stats">
+          <span><span id="dl-current">0</span> / <span id="dl-total">0</span></span>
+          <span class="dl-stat-ok">成功 <span id="dl-success">0</span></span>
+          <span class="dl-stat-fail">失败 <span id="dl-failed">0</span></span>
+        </div>
+        <div class="dl-actions">
+          <button id="dl-pause" class="btn btn-sm">
+            <span class="material-symbols-outlined">pause</span> 暂停
+          </button>
+          <button id="dl-resume" class="btn btn-sm" style="display:none">
+            <span class="material-symbols-outlined">play_arrow</span> 恢复
+          </button>
+          <button id="dl-retry" class="btn btn-sm" style="display:none">
+            <span class="material-symbols-outlined">replay</span> 重试失败
+          </button>
+          <button id="dl-clear" class="btn btn-sm" style="display:none">
+            <span class="material-symbols-outlined">close</span> 清除
+          </button>
+        </div>
+        <div id="dl-song-list" class="dl-song-list"></div>
+        <div id="dl-pagination" class="dl-pagination" style="display:none">
+          <button id="dl-prev" class="btn btn-sm">
+            <span class="material-symbols-outlined">chevron_left</span>
+          </button>
+          <span id="dl-page-info">1 / 1</span>
+          <button id="dl-next" class="btn btn-sm">
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -159,6 +189,7 @@
         <label>下载间隔（秒）</label>
         <input id="set-interval" type="number" min="0" max="30" />
       </div>
+      <label class="chk"><input type="checkbox" id="set-pause-on-error" checked /> 下载出错时自动暂停</label>
     </section>
 
     <!-- 底部 Tab -->

@@ -504,6 +504,7 @@
     }
     if (withDownload) {
       document.querySelector('.tab-btn[data-tab=download]').click();
+      startDownloadPolling();
     }
   }
   $('import-only').addEventListener('click', () => importSelected(false));
@@ -605,6 +606,140 @@
 
   // ================= 下载 =================
   let downloadTimer = 0;
+  let lastProgress = null;
+  let dlPage = 0;
+  const DL_PAGE_SIZE = 30;
+
+  const STATUS_ICON = {
+    pending: 'schedule',
+    downloading: 'autorenew',
+    ok: 'check_circle',
+    failed: 'error',
+  };
+
+  function startDownloadPolling() {
+    stopDownloadPolling();
+    $('download-progress').style.display = 'block';
+    $('download-empty').style.display = 'none';
+    downloadTimer = setInterval(pollDownloadProgress, 2000);
+    pollDownloadProgress();
+  }
+
+  function stopDownloadPolling() {
+    if (downloadTimer) {
+      clearInterval(downloadTimer);
+      downloadTimer = 0;
+    }
+  }
+
+  async function pollDownloadProgress() {
+    let r;
+    try {
+      r = await API.apiGet('/api/download-batch/progress');
+    } catch (e) {
+      return;
+    }
+    if (!r.active) {
+      stopDownloadPolling();
+      $('download-progress').style.display = 'none';
+      $('download-empty').style.display = 'block';
+      lastProgress = null;
+      return;
+    }
+    lastProgress = r;
+    renderDownloadProgress(r);
+    if (r.done) {
+      stopDownloadPolling();
+      toast('下载完成：成功 ' + r.success + '，失败 ' + r.failed);
+    }
+  }
+
+  function renderDownloadProgress(r) {
+    $('download-progress').style.display = 'block';
+    $('download-empty').style.display = 'none';
+
+    var pct = r.total > 0 ? Math.round((r.current / r.total) * 100) : 0;
+    $('dl-bar').style.width = pct + '%';
+    $('dl-current').textContent = r.current;
+    $('dl-total').textContent = r.total;
+    $('dl-success').textContent = r.success || 0;
+    $('dl-failed').textContent = r.failed || 0;
+
+    // 状态徽标
+    var badge = $('dl-status-badge');
+    badge.classList.remove('badge--paused', 'badge--done', 'badge--failed');
+    if (r.done) {
+      badge.textContent = r.failed > 0 ? '已完成（部分失败）' : '已完成';
+      badge.classList.add(r.failed > 0 ? 'badge--failed' : 'badge--done');
+    } else if (r.paused) {
+      badge.textContent = '已暂停';
+      badge.classList.add('badge--paused');
+    } else {
+      badge.textContent = '进行中';
+    }
+
+    // 按钮状态
+    if (r.done) {
+      $('dl-pause').style.display = 'none';
+      $('dl-resume').style.display = 'none';
+      $('dl-clear').style.display = '';
+      $('dl-retry').style.display = r.failed > 0 ? '' : 'none';
+    } else {
+      $('dl-clear').style.display = 'none';
+      $('dl-retry').style.display = 'none';
+      $('dl-pause').style.display = r.paused ? 'none' : '';
+      $('dl-resume').style.display = r.paused ? '' : 'none';
+    }
+
+    renderDownloadSongList(r.songs || []);
+  }
+
+  function renderDownloadSongList(songs) {
+    var totalPages = Math.max(1, Math.ceil(songs.length / DL_PAGE_SIZE));
+    if (dlPage >= totalPages) dlPage = totalPages - 1;
+    if (dlPage < 0) dlPage = 0;
+
+    var start = dlPage * DL_PAGE_SIZE;
+    var end = Math.min(start + DL_PAGE_SIZE, songs.length);
+    var pageSongs = songs.slice(start, end);
+
+    var list = $('dl-song-list');
+    list.innerHTML = '';
+
+    pageSongs.forEach(function (song) {
+      var div = document.createElement('div');
+      div.className = 'dl-song-item';
+      var icon = STATUS_ICON[song.status] || 'schedule';
+      var iconEl = document.createElement('span');
+      iconEl.className = 'dl-song-icon status-' + song.status;
+      iconEl.innerHTML = '<span class="material-symbols-outlined">' + icon + '</span>';
+
+      var info = document.createElement('div');
+      info.className = 'dl-song-info';
+      var title = document.createElement('div');
+      title.className = 'dl-song-title';
+      title.textContent = song.title || '歌曲 #' + song.song_id;
+      info.appendChild(title);
+
+      if (song.status === 'failed' && song.error) {
+        var err = document.createElement('div');
+        err.className = 'dl-song-error';
+        err.textContent = song.error;
+        info.appendChild(err);
+      }
+
+      div.appendChild(iconEl);
+      div.appendChild(info);
+      list.appendChild(div);
+    });
+
+    // 分页
+    var pag = $('dl-pagination');
+    pag.style.display = songs.length > DL_PAGE_SIZE ? 'flex' : 'none';
+    $('dl-page-info').textContent = (dlPage + 1) + ' / ' + totalPages;
+    $('dl-prev').disabled = dlPage === 0;
+    $('dl-next').disabled = dlPage >= totalPages - 1;
+  }
 
   async function refreshDownload() {
     let r;
@@ -613,31 +748,73 @@
     } catch (e) {
       return;
     }
-    if (!r.active) {
+    if (r.active) {
+      lastProgress = r;
+      renderDownloadProgress(r);
+      if (!r.done && !downloadTimer) startDownloadPolling();
+    } else {
       $('download-empty').style.display = 'block';
       $('download-progress').style.display = 'none';
-      clearInterval(downloadTimer);
-      return;
-    }
-    $('download-empty').style.display = 'none';
-    $('download-progress').style.display = 'block';
-    $('dl-current').textContent = r.current;
-    $('dl-total').textContent = r.total;
-    $('dl-success').textContent = r.success;
-    $('dl-failed').textContent = r.failed;
-    $('dl-bar').style.width = r.total ? Math.round((r.current / r.total) * 100) + '%' : '0%';
-
-    if (r.done) {
-      clearInterval(downloadTimer);
-      toast('下载完成');
-    } else if (!downloadTimer) {
-      downloadTimer = setInterval(refreshDownload, 1500);
     }
   }
 
+  $('dl-pause').addEventListener('click', async () => {
+    try {
+      await API.apiPost('/api/download-batch/pause', {});
+      $('dl-pause').style.display = 'none';
+      $('dl-resume').style.display = '';
+    } catch (e) {
+      toast('暂停失败');
+    }
+  });
+
+  $('dl-resume').addEventListener('click', async () => {
+    try {
+      await API.apiPost('/api/download-batch/resume', {});
+      $('dl-resume').style.display = 'none';
+      $('dl-pause').style.display = '';
+    } catch (e) {
+      toast('恢复失败');
+    }
+  });
+
+  $('dl-retry').addEventListener('click', async () => {
+    if (!lastProgress || !lastProgress.songs) return;
+    var failedSongs = lastProgress.songs.filter(function (s) { return s.status === 'failed'; });
+    if (failedSongs.length === 0) { toast('没有失败的歌曲'); return; }
+    var songIds = failedSongs.map(function (s) { return s.song_id; });
+    var songTitles = {};
+    failedSongs.forEach(function (s) { songTitles[s.song_id] = s.title; });
+    try {
+      await API.apiPost('/api/download-batch', {
+        song_ids: songIds,
+        playlist_name: lastProgress.playlist_name || undefined,
+        song_titles: songTitles,
+      });
+      dlPage = 0;
+      startDownloadPolling();
+    } catch (e) {
+      toast('重试失败');
+    }
+  });
+
   $('dl-clear').addEventListener('click', async () => {
     await API.apiPost('/api/download-batch/clear', {});
-    refreshDownload();
+    $('download-progress').style.display = 'none';
+    $('download-empty').style.display = 'block';
+    lastProgress = null;
+    dlPage = 0;
+    stopDownloadPolling();
+  });
+
+  $('dl-prev').addEventListener('click', () => {
+    dlPage--;
+    if (lastProgress) renderDownloadSongList(lastProgress.songs || []);
+  });
+
+  $('dl-next').addEventListener('click', () => {
+    dlPage++;
+    if (lastProgress) renderDownloadSongList(lastProgress.songs || []);
   });
 
   // ================= 设置 =================
@@ -656,6 +833,7 @@
     $('set-format').value = s.transcode_format || '';
     $('set-bitrate').value = String(s.transcode_bitrate != null ? s.transcode_bitrate : 0);
     $('set-interval').value = s.download_interval != null ? s.download_interval : 2;
+    $('set-pause-on-error').checked = s.pause_on_error !== false;
     syncBitrateEnabled();
   }
 
@@ -677,6 +855,7 @@
         transcode_format: $('set-format').value,
         transcode_bitrate: parseInt($('set-bitrate').value, 10) || 0,
         download_interval: parseInt($('set-interval').value, 10) || 0,
+        pause_on_error: $('set-pause-on-error').checked,
       };
       try {
         await API.apiPost('/api/settings', body);
@@ -686,7 +865,7 @@
       }
     }, 500);
   }
-  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-format', 'set-bitrate', 'set-interval'].forEach((id) => {
+  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-format', 'set-bitrate', 'set-interval', 'set-pause-on-error'].forEach((id) => {
     $(id).addEventListener('change', saveSettings);
   });
   $('set-format').addEventListener('change', syncBitrateEnabled);

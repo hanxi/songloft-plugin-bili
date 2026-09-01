@@ -393,3 +393,120 @@ html.embed .tab-btn {
   .tab-bar { width: 100px; }
   .toast { left: calc(50% + 50px); }
 }
+
+/* ---- 下载进度 ---- */
+.dl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dl-title { font-size: 15px; font-weight: 600; }
+.dl-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--md-primary, #fb7299);
+  color: var(--md-on-primary, #fff);
+}
+.dl-badge.badge--paused { background: var(--md-tertiary, #e8a317); color: #fff; }
+.dl-badge.badge--done { background: var(--md-primary, #4caf50); color: #fff; }
+.dl-badge.badge--failed { background: var(--md-error, #b3261e); color: #fff; }
+
+.dl-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--md-on-surface-variant, #666);
+}
+.dl-stat-ok { color: var(--md-primary, #4caf50); }
+.dl-stat-fail { color: var(--md-error, #b3261e); }
+
+.dl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.btn-sm .material-symbols-outlined { font-size: 18px; }
+
+.dl-song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.dl-song-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--md-surface, #fff);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0,0,0,0.06));
+}
+
+.dl-song-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dl-song-icon .material-symbols-outlined { font-size: 20px; }
+.dl-song-icon.status-pending .material-symbols-outlined { color: var(--md-on-surface-variant, #999); }
+.dl-song-icon.status-downloading .material-symbols-outlined {
+  color: var(--md-primary, #fb7299);
+  animation: dl-spin 1s linear infinite;
+}
+.dl-song-icon.status-ok .material-symbols-outlined { color: #4caf50; }
+.dl-song-icon.status-failed .material-symbols-outlined { color: var(--md-error, #b3261e); }
+
+@keyframes dl-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.dl-song-info {
+  flex: 1;
+  min-width: 0;
+}
+.dl-song-title {
+  font-size: 13px;
+  color: var(--md-on-surface, #111);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-song-error {
+  font-size: 11px;
+  color: var(--md-error, #b3261e);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--md-on-surface-variant, #666);
+}

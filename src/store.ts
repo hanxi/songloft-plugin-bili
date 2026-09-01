@@ -20,6 +20,7 @@ export interface Settings {
   transcode_format: '' | 'mp3' | 'm4a';
   // 转码码率：0=默认最高质量；128/192/320=指定 CBR。transcode_format 为 '' 时忽略
   transcode_bitrate: 0 | 128 | 192 | 320;
+  pause_on_error: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -31,6 +32,7 @@ const DEFAULTS: Settings = {
   download_interval: 2,
   transcode_format: '',
   transcode_bitrate: 0,
+  pause_on_error: true,
 };
 
 export async function getSettings(): Promise<Settings> {

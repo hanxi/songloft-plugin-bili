@@ -11,7 +11,7 @@ import {
 import { searchVideosHandler, searchHandler, toponeHandler } from './search';
 import { foldersHandler, folderContentHandler, folderImportHandler } from './favorites';
 import { importSongs } from './importer';
-import { startBatchDownload, getBatchTask, clearBatchTask } from './downloader';
+import { startBatchDownload, getBatchTask, clearBatchTask, pauseBatch, resumeBatch } from './downloader';
 import { musicUrlHandler } from './music-url';
 import { getSettings, saveSettings } from './store';
 import { extractFromURL, extractVideoParts } from './extractor';
@@ -87,7 +87,9 @@ router.post('/api/import-download', async (req) => {
   if (!items || items.length === 0) return jsonResponse({ error: 'items is required' }, 400);
   try {
     const result = await importSongs(items, playlist_name, playlist_id, artist_override);
-    await startBatchDownload(result.songs.map((s) => s.id));
+    const songIds = result.songs.map((s) => s.id);
+    const songTitles = new Map(result.songs.map((s) => [s.id, s.title]));
+    await startBatchDownload(songIds, { playlistName: playlist_name, songTitles });
     return jsonResponse({
       count: result.songs.length,
       total: result.total,
@@ -102,9 +104,14 @@ router.post('/api/import-download', async (req) => {
 
 // --- 批量下载 ---
 router.post('/api/download-batch', async (req) => {
-  const { song_ids } = JSON.parse(String(req.body)) as { song_ids: number[] };
+  const { song_ids, playlist_name, song_titles } = JSON.parse(String(req.body)) as {
+    song_ids: number[];
+    playlist_name?: string;
+    song_titles?: Record<number, string>;
+  };
   if (!song_ids || song_ids.length === 0) return jsonResponse({ error: 'song_ids is required' }, 400);
-  await startBatchDownload(song_ids);
+  const titlesMap = song_titles ? new Map(Object.entries(song_titles).map(([k, v]) => [Number(k), v])) : undefined;
+  await startBatchDownload(song_ids, { playlistName: playlist_name, songTitles: titlesMap });
   return jsonResponse({ started: true, total: song_ids.length });
 });
 
@@ -118,9 +125,23 @@ router.get('/api/download-batch/progress', async () => {
     current: task.current,
     total: task.total,
     done: task.done,
+    paused: task.paused,
     success,
     failed,
+    results: task.results,
+    songs: task.songs,
+    playlist_name: task.playlist_name,
   });
+});
+
+router.post('/api/download-batch/pause', async () => {
+  pauseBatch();
+  return jsonResponse({ ok: true });
+});
+
+router.post('/api/download-batch/resume', async () => {
+  resumeBatch();
+  return jsonResponse({ ok: true });
 });
 
 router.post('/api/download-batch/clear', async () => {
