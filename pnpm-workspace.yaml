@@ -1,3 +1,5 @@
+packages: []
+
 # pnpm 默认对发布不足 24h 的包做 supply-chain 拦截（minimumReleaseAge）。
 # @songloft/plugin-sdk@2.13.8 是本次随宿主改动同步发布的，发布当天安装会被拒。
 # 该条目可在 2.13.8 发布满 24h 后删除（songloft-org/songloft#401）。
