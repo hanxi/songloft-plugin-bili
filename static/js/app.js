@@ -16,6 +16,7 @@
   const $ = (id) => document.getElementById(id);
   const toastEl = $('toast');
   let toastTimer = 0;
+  let watchStatusTimer = 0;
   function toast(msg) {
     toastEl.textContent = msg;
     toastEl.classList.add('show');
@@ -59,6 +60,11 @@
       if (tab === 'settings') {
         loadSettings();
         refreshStatus();
+        refreshWatchStatus();
+        if (!watchStatusTimer) watchStatusTimer = setInterval(refreshWatchStatus, 2000);
+      } else if (watchStatusTimer) {
+        clearInterval(watchStatusTimer);
+        watchStatusTimer = 0;
       }
     });
   });
@@ -818,6 +824,69 @@
   });
 
   // ================= 设置 =================
+  async function loadWatchFoldersForSettings(selectedId, selectedTitle) {
+    const select = $('set-watch-folder');
+    let folders = [];
+    try {
+      const response = await API.apiGet('/api/favorites');
+      folders = Array.isArray(response.folders) ? response.folders : [];
+    } catch (e) {
+      /* Keep the configured folder available if Bilibili is temporarily unreachable. */
+    }
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '0';
+    placeholder.textContent = '请选择收藏夹';
+    select.appendChild(placeholder);
+    folders.forEach((folder) => {
+      const option = document.createElement('option');
+      option.value = String(folder.id);
+      option.textContent = folder.title + '（' + folder.count + ' 首）';
+      option.dataset.title = folder.title || '';
+      select.appendChild(option);
+    });
+    if (selectedId && !folders.some((folder) => Number(folder.id) === Number(selectedId))) {
+      const option = document.createElement('option');
+      option.value = String(selectedId);
+      option.textContent = (selectedTitle || '已配置收藏夹') + '（暂不可用）';
+      option.dataset.title = selectedTitle || '';
+      select.appendChild(option);
+    }
+    select.value = selectedId ? String(selectedId) : '0';
+  }
+
+  async function loadWatchPlaylists(selectedId, selectedTitle) {
+    const select = $('set-watch-playlist');
+    let playlists = [];
+    try {
+      const response = await API.apiGet('/api/playlists');
+      playlists = Array.isArray(response.playlists) ? response.playlists : [];
+    } catch (e) {
+      /* Keep the configured playlist available if the host API is temporarily unavailable. */
+    }
+    select.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '0';
+    none.textContent = '不加入歌单';
+    none.dataset.title = '';
+    select.appendChild(none);
+    playlists.forEach((playlist) => {
+      const option = document.createElement('option');
+      option.value = String(playlist.id);
+      option.textContent = (playlist.name || '未命名歌单') + '（' + (playlist.song_count || 0) + ' 首）';
+      option.dataset.title = playlist.name || '';
+      select.appendChild(option);
+    });
+    if (selectedId && !playlists.some((playlist) => Number(playlist.id) === Number(selectedId))) {
+      const option = document.createElement('option');
+      option.value = String(selectedId);
+      option.textContent = (selectedTitle || '已配置歌单') + '（已不存在）';
+      option.dataset.title = selectedTitle || '';
+      select.appendChild(option);
+    }
+    select.value = selectedId ? String(selectedId) : '0';
+  }
+
   async function loadSettings() {
     let s;
     try {
@@ -825,6 +894,8 @@
     } catch (e) {
       return;
     }
+    await loadWatchFoldersForSettings(s.watch_favorite_id, s.watch_favorite_title);
+    await loadWatchPlaylists(s.watch_playlist_id, s.watch_playlist_title);
     $('set-quality').value = s.audio_quality || 'high';
     $('set-dolby').checked = !!s.enable_dolby;
     $('set-hires').checked = !!s.enable_hires;
@@ -834,6 +905,8 @@
     $('set-bitrate').value = String(s.transcode_bitrate != null ? s.transcode_bitrate : 0);
     $('set-interval').value = s.download_interval != null ? s.download_interval : 2;
     $('set-pause-on-error').checked = s.pause_on_error !== false;
+    $('set-watch-enabled').checked = !!s.watch_favorite_enabled;
+    $('set-watch-interval').value = s.watch_interval_minutes != null ? s.watch_interval_minutes : 10;
     syncBitrateEnabled();
   }
 
@@ -845,7 +918,12 @@
   let saveTimer = 0;
   function saveSettings() {
     clearTimeout(saveTimer);
+    if ($('set-watch-enabled').checked && (parseInt($('set-watch-folder').value, 10) || 0) <= 0) {
+      toast('请先选择要监控的收藏夹');
+      return;
+    }
     saveTimer = setTimeout(async () => {
+      const selectedFolder = $('set-watch-folder').selectedOptions[0];
       const body = {
         audio_quality: $('set-quality').value,
         enable_dolby: $('set-dolby').checked,
@@ -856,19 +934,106 @@
         transcode_bitrate: parseInt($('set-bitrate').value, 10) || 0,
         download_interval: parseInt($('set-interval').value, 10) || 0,
         pause_on_error: $('set-pause-on-error').checked,
+        watch_favorite_enabled: $('set-watch-enabled').checked,
+        watch_favorite_id: parseInt($('set-watch-folder').value, 10) || 0,
+        watch_favorite_title: selectedFolder ? selectedFolder.dataset.title || '' : '',
+        watch_interval_minutes: Math.min(1440, Math.max(1, parseInt($('set-watch-interval').value, 10) || 10)),
+        watch_playlist_id: parseInt($('set-watch-playlist').value, 10) || 0,
+        watch_playlist_title: $('set-watch-playlist').selectedOptions[0]?.dataset.title || '',
       };
       try {
-        await API.apiPost('/api/settings', body);
+        const response = await API.apiPost('/api/settings', body);
+        if (response && response.error) {
+          toast(response.error);
+          return;
+        }
         toast('设置已保存');
       } catch (e) {
         /* ignore */
       }
     }, 500);
   }
-  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-format', 'set-bitrate', 'set-interval', 'set-pause-on-error'].forEach((id) => {
+  ['set-quality', 'set-dolby', 'set-hires', 'set-template', 'set-embed', 'set-format', 'set-bitrate', 'set-interval', 'set-pause-on-error', 'set-watch-enabled', 'set-watch-folder', 'set-watch-interval', 'set-watch-playlist'].forEach((id) => {
     $(id).addEventListener('change', saveSettings);
   });
   $('set-format').addEventListener('change', syncBitrateEnabled);
+
+  function localTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  }
+
+  async function refreshWatchStatus() {
+    const box = $('watch-status');
+    let status;
+    try {
+      status = await API.apiGet('/api/favorite-watch/status');
+    } catch (e) {
+      box.textContent = '收藏夹监控状态暂不可用';
+      return;
+    }
+    if (!status || status.error) {
+      box.textContent = '收藏夹监控状态暂不可用';
+      return;
+    }
+    const counts = status.counts || {};
+    box.textContent = [
+      '监控：' + (status.enabled ? '已启用' : '已关闭'),
+      '收藏夹：' + (status.folder_title || '-'),
+      '目标歌单：' + (status.playlist_id > 0 ? status.playlist_title || '-' : '不加入歌单'),
+      '运行状态：' + (status.running ? '检查中' : '空闲'),
+      '上次检查：' + localTime(status.last_check_at),
+      '下次检查：' + localTime(status.next_check_at),
+      '',
+      '基线：' + (counts.baseline || 0),
+      '待处理：' + (counts.pending || 0),
+      '已下载：' + (counts.downloaded || 0),
+      '失败：' + (counts.failed || 0),
+      '停止自动重试：' + (counts.retry_exhausted || 0),
+      '',
+      '最近错误：' + (status.last_error || '-'),
+    ].join('\n');
+  }
+
+  $('watch-check-now').addEventListener('click', async () => {
+    try {
+      const result = await API.apiPost('/api/favorite-watch/check', {});
+      toast(result && result.skipped === 'already_running' ? '检查正在进行' : '已开始检查收藏夹');
+      refreshWatchStatus();
+    } catch (e) {
+      toast('启动检查失败');
+    }
+  });
+
+  $('watch-rebaseline').addEventListener('click', async () => {
+    if (!window.confirm('重建基线会把当前收藏夹所有现有项目视为已存在，之后只处理新的收藏项目。确定继续？')) return;
+    try {
+      const result = await API.apiPost('/api/favorite-watch/rebaseline', {});
+      if (result && result.error) {
+        toast(result.error);
+        return;
+      }
+      toast('基线已重建：' + (result.count || 0) + ' 项');
+      refreshWatchStatus();
+    } catch (e) {
+      toast('重建基线失败');
+    }
+  });
+
+  $('watch-retry-failed').addEventListener('click', async () => {
+    try {
+      const result = await API.apiPost('/api/favorite-watch/retry-failed', {});
+      if (result && result.error) {
+        toast(result.error);
+        return;
+      }
+      toast('失败项目已重新加入重试队列');
+      refreshWatchStatus();
+    } catch (e) {
+      toast('重试失败项目失败');
+    }
+  });
 
   $('search-test-btn').addEventListener('click', async () => {
     const keyword = $('search-test-input').value.trim();
