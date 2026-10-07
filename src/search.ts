@@ -223,7 +223,7 @@ function scoreCandidate(item: BiliVideo, hint?: { title?: string; artist?: strin
   return score;
 }
 
-async function ensureFirstPage(item: BiliVideo): Promise<BiliVideo> {
+export async function ensureFirstPage(item: BiliVideo): Promise<BiliVideo> {
   if (item.cid) return item;
 
   const j = await biliGet('/x/player/pagelist', { bvid: item.bvid });

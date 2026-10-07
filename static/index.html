@@ -190,6 +190,35 @@
         <input id="set-interval" type="number" min="0" max="30" />
       </div>
       <label class="chk"><input type="checkbox" id="set-pause-on-error" checked /> 下载出错时自动暂停</label>
+
+      <div class="section-title">收藏夹自动监控</div>
+      <div class="card">
+        <label class="chk"><input type="checkbox" id="set-watch-enabled" /> 启用收藏夹自动监控</label>
+        <div class="field">
+          <label for="set-watch-folder">监控收藏夹</label>
+          <select id="set-watch-folder">
+            <option value="0">请选择收藏夹</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="set-watch-playlist">自动加入歌单</label>
+          <select id="set-watch-playlist">
+            <option value="0">不加入歌单</option>
+          </select>
+          <div class="field-hint">新发现的收藏项目会自动加入所选 Songloft 歌单；不影响已经建立基线或已经处理过的历史歌曲。</div>
+        </div>
+        <div class="field">
+          <label for="set-watch-interval">检查间隔（分钟）</label>
+          <input id="set-watch-interval" type="number" min="1" max="1440" />
+        </div>
+        <div class="field-hint">首次启用或切换收藏夹时，只会建立当前内容基线，不会下载已有项目；之后新增到该收藏夹的项目才会自动导入并下载。删除收藏夹项目不会删除 NAS 上已经下载的文件。</div>
+        <div class="inline-bar">
+          <button id="watch-check-now" class="btn btn-primary">立即检查</button>
+          <button id="watch-rebaseline" class="btn">重建基线</button>
+          <button id="watch-retry-failed" class="btn">重试失败项目</button>
+        </div>
+        <div id="watch-status" class="test-result"></div>
+      </div>
     </section>
 
     <!-- 底部 Tab -->

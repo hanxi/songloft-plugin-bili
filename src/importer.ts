@@ -19,6 +19,14 @@ interface ImportResult {
   failed: number;
 }
 
+export async function addSongsToPlaylist(playlistId: number, songIds: number[]): Promise<void> {
+  const batchSize = 50;
+  for (let i = 0; i < songIds.length; i += batchSize) {
+    const batch = songIds.slice(i, i + batchSize);
+    await callHostAPI('POST', `/api/v1/playlists/${playlistId}/songs`, { song_ids: batch });
+  }
+}
+
 function resolveArtistAndTitle(
   item: BiliVideo,
   artistOverride?: string,
@@ -77,11 +85,7 @@ export async function importSongs(
   }
 
   if (finalPlaylistId && allSongs.length > 0) {
-    const songIds = allSongs.map((s) => s.id);
-    for (let i = 0; i < songIds.length; i += batchSize) {
-      const batch = songIds.slice(i, i + batchSize);
-      await callHostAPI('POST', `/api/v1/playlists/${finalPlaylistId}/songs`, { song_ids: batch });
-    }
+    await addSongsToPlaylist(finalPlaylistId, allSongs.map((song) => song.id));
   }
 
   return {

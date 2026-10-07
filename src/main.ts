@@ -14,6 +14,14 @@ import { importSongs } from './importer';
 import { startBatchDownload, getBatchTask, clearBatchTask, pauseBatch, resumeBatch } from './downloader';
 import { musicUrlHandler } from './music-url';
 import { getSettings, saveSettings } from './store';
+import {
+  getFavoriteWatchStatus,
+  rebuildFavoriteWatchBaseline,
+  reconfigureFavoriteWatcher,
+  retryFailedFavoriteWatchItems,
+  runFavoriteWatchCheck,
+  startFavoriteWatcher,
+} from './favorite-watcher';
 import { extractFromURL, extractVideoParts } from './extractor';
 import type { BiliVideo } from './search';
 
@@ -155,8 +163,36 @@ router.post('/api/music/url', musicUrlHandler);
 // --- 设置 ---
 router.get('/api/settings', async () => jsonResponse(await getSettings()));
 router.post('/api/settings', async (req) => {
+  const previous = await getSettings();
   const body = JSON.parse(String(req.body));
-  return jsonResponse(await saveSettings(body));
+  const interval = Number(body.watch_interval_minutes);
+  body.watch_interval_minutes = Number.isInteger(interval) && interval >= 1 && interval <= 1440 ? interval : 10;
+  const folderId = Number(body.watch_favorite_id);
+  if (body.watch_favorite_enabled === true && (!Number.isInteger(folderId) || folderId <= 0)) {
+    return jsonResponse({ error: '请选择要监控的收藏夹' }, 400);
+  }
+  const updated = await saveSettings(body);
+  await reconfigureFavoriteWatcher(previous, updated);
+  return jsonResponse(updated);
+});
+
+router.get('/api/favorite-watch/status', async () => jsonResponse(await getFavoriteWatchStatus()));
+router.post('/api/favorite-watch/check', async () => {
+  const status = await getFavoriteWatchStatus();
+  if (status.running) return jsonResponse({ started: false, skipped: 'already_running' });
+  void runFavoriteWatchCheck('manual');
+  return jsonResponse({ started: true });
+});
+router.post('/api/favorite-watch/rebaseline', async () => {
+  try {
+    const result = await rebuildFavoriteWatchBaseline();
+    return jsonResponse({ count: result.count });
+  } catch (e: any) {
+    return jsonResponse({ error: e.message }, 400);
+  }
+});
+router.post('/api/favorite-watch/retry-failed', async () => {
+  return jsonResponse(await retryFailedFavoriteWatchItems());
 });
 
 // --- 歌单 ---
@@ -204,5 +240,6 @@ function registerSearchProviderToMiot(): void {
 // --- 生命周期 ---
 globalThis.onInit = async () => {
   registerSearchProviderToMiot();
+  await startFavoriteWatcher();
 };
 globalThis.onHTTPRequest = (req) => router.handle(req);

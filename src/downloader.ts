@@ -104,6 +104,21 @@ async function downloadWithRetry(
   throw lastErr;
 }
 
+export async function downloadSingleSong(
+  songId: number,
+): Promise<{ result: any; attempts: number }> {
+  const settings = await getSettings();
+  return downloadWithRetry(songId, {
+    path_template: settings.path_template,
+    embed_metadata: settings.embed_metadata,
+    format: settings.transcode_format || undefined,
+    quality:
+      settings.transcode_format && settings.transcode_bitrate
+        ? String(settings.transcode_bitrate)
+        : undefined,
+  });
+}
+
 export interface StartBatchOptions {
   songTitles?: Map<number, string>;
   playlistName?: string;
