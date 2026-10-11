@@ -13,6 +13,7 @@
   "permissions": [
     "storage",
     "playlists.read",
+    "songs.read",
     "songs.write",
     "inter-plugin"
   ],

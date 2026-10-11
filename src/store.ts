@@ -8,6 +8,7 @@
 // 与 auth.ts 里解析**响应**头 Set-Cookie 的 parseSetCookie 语义不同，别混用。
 
 import { parseCookieHeader, stringifyCookieHeader } from '@songloft/plugin-sdk';
+import { DEFAULT_DOWNLOAD_TEMPLATE } from './download-path';
 
 export interface Settings {
   audio_quality: 'high' | 'medium' | 'low';
@@ -33,12 +34,12 @@ const DEFAULTS: Settings = {
   audio_quality: 'high',
   enable_dolby: false,
   enable_hires: false,
-  path_template: 'bili/{artist}/{title}',
+  path_template: DEFAULT_DOWNLOAD_TEMPLATE,
   embed_metadata: true,
   download_interval: 2,
   transcode_format: '',
   transcode_bitrate: 0,
-  pause_on_error: true,
+  pause_on_error: false,
   watch_favorite_enabled: false,
   watch_favorite_id: 0,
   watch_favorite_title: '',

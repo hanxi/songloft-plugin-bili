@@ -474,6 +474,7 @@ html.embed .tab-btn {
   animation: dl-spin 1s linear infinite;
 }
 .dl-song-icon.status-ok .material-symbols-outlined { color: #4caf50; }
+.dl-song-icon.status-skipped .material-symbols-outlined { color: var(--md-on-surface-variant, #999); }
 .dl-song-icon.status-failed .material-symbols-outlined { color: var(--md-error, #b3261e); }
 
 @keyframes dl-spin {

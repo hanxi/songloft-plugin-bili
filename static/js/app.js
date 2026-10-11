@@ -478,12 +478,14 @@
     }
     const artistOverride = $('import-artist').value.trim();
     if (artistOverride) body.artist_override = artistOverride;
+    const directory = $('import-directory').value.trim();
+    if (withDownload && directory) body.download_directory = directory;
     const path = withDownload ? '/api/import-download' : '/api/import';
     let r;
     try {
       r = await API.apiPost(path, body);
     } catch (e) {
-      toast('导入失败');
+      toast('导入失败：' + (e.message || String(e)));
       return;
     }
     if (r.error) {
@@ -612,6 +614,7 @@
 
   // ================= 下载 =================
   let downloadTimer = 0;
+  let downloadEpoch = 0;
   let lastProgress = null;
   let dlPage = 0;
   const DL_PAGE_SIZE = 30;
@@ -620,6 +623,7 @@
     pending: 'schedule',
     downloading: 'autorenew',
     ok: 'check_circle',
+    skipped: 'skip_next',
     failed: 'error',
   };
 
@@ -632,6 +636,7 @@
   }
 
   function stopDownloadPolling() {
+    downloadEpoch++;
     if (downloadTimer) {
       clearInterval(downloadTimer);
       downloadTimer = 0;
@@ -639,12 +644,14 @@
   }
 
   async function pollDownloadProgress() {
+    const epoch = downloadEpoch;
     let r;
     try {
       r = await API.apiGet('/api/download-batch/progress');
     } catch (e) {
       return;
     }
+    if (epoch !== downloadEpoch) return;
     if (!r.active) {
       stopDownloadPolling();
       $('download-progress').style.display = 'none';
@@ -656,7 +663,7 @@
     renderDownloadProgress(r);
     if (r.done) {
       stopDownloadPolling();
-      toast('下载完成：成功 ' + r.success + '，失败 ' + r.failed);
+      toast('下载完成：成功 ' + r.success + '，跳过 ' + (r.skipped || 0) + '，失败 ' + r.failed);
     }
   }
 
@@ -669,6 +676,7 @@
     $('dl-current').textContent = r.current;
     $('dl-total').textContent = r.total;
     $('dl-success').textContent = r.success || 0;
+    $('dl-skipped').textContent = r.skipped || 0;
     $('dl-failed').textContent = r.failed || 0;
 
     // 状态徽标
@@ -691,11 +699,13 @@
       $('dl-clear').style.display = '';
       $('dl-retry').style.display = r.failed > 0 ? '' : 'none';
     } else {
-      $('dl-clear').style.display = 'none';
+      $('dl-clear').style.display = r.paused ? '' : 'none';
+      $('dl-clear').textContent = '清除任务';
       $('dl-retry').style.display = 'none';
       $('dl-pause').style.display = r.paused ? 'none' : '';
       $('dl-resume').style.display = r.paused ? '' : 'none';
     }
+    if (r.done) $('dl-clear').textContent = '清除记录';
 
     renderDownloadSongList(r.songs || []);
   }
@@ -727,6 +737,13 @@
       title.textContent = song.title || '歌曲 #' + song.song_id;
       info.appendChild(title);
 
+      if (song.status === 'skipped') {
+        var skipped = document.createElement('div');
+        skipped.className = 'muted';
+        skipped.textContent = '已下载，跳过';
+        info.appendChild(skipped);
+      }
+
       if (song.status === 'failed' && song.error) {
         var err = document.createElement('div');
         err.className = 'dl-song-error';
@@ -748,12 +765,14 @@
   }
 
   async function refreshDownload() {
+    const epoch = downloadEpoch;
     let r;
     try {
       r = await API.apiGet('/api/download-batch/progress');
     } catch (e) {
       return;
     }
+    if (epoch !== downloadEpoch) return;
     if (r.active) {
       lastProgress = r;
       renderDownloadProgress(r);
@@ -769,6 +788,7 @@
       await API.apiPost('/api/download-batch/pause', {});
       $('dl-pause').style.display = 'none';
       $('dl-resume').style.display = '';
+      await refreshDownload();
     } catch (e) {
       toast('暂停失败');
     }
@@ -792,25 +812,34 @@
     var songTitles = {};
     failedSongs.forEach(function (s) { songTitles[s.song_id] = s.title; });
     try {
-      await API.apiPost('/api/download-batch', {
+      const response = await API.apiPost('/api/download-batch', {
         song_ids: songIds,
         playlist_name: lastProgress.playlist_name || undefined,
         song_titles: songTitles,
+        download_directory: lastProgress.download_directory || undefined,
+        path_template: lastProgress.path_template || undefined,
       });
+      if (response.error) throw new Error(response.error);
       dlPage = 0;
       startDownloadPolling();
     } catch (e) {
-      toast('重试失败');
+      toast('重试失败：' + (e.message || String(e)));
     }
   });
 
   $('dl-clear').addEventListener('click', async () => {
-    await API.apiPost('/api/download-batch/clear', {});
+    try {
+      const response = await API.apiPost('/api/download-batch/clear', {});
+      if (response.error) throw new Error(response.error);
+    } catch (e) {
+      toast('清除失败：' + (e.message || String(e)));
+      return;
+    }
+    stopDownloadPolling();
     $('download-progress').style.display = 'none';
     $('download-empty').style.display = 'block';
     lastProgress = null;
     dlPage = 0;
-    stopDownloadPolling();
   });
 
   $('dl-prev').addEventListener('click', () => {
@@ -887,6 +916,25 @@
     select.value = selectedId ? String(selectedId) : '0';
   }
 
+  const PATH_PRESETS = {
+    playlist: 'bili/{playlist}/{title}',
+    flat: 'bili/{title}',
+    artist: 'bili/{artist}/{title}',
+  };
+
+  function syncPathMode() {
+    const template = $('set-template').value.trim() || PATH_PRESETS.playlist;
+    $('set-path-mode').value =
+      Object.keys(PATH_PRESETS).find((mode) => PATH_PRESETS[mode] === template) || 'custom';
+  }
+
+  $('set-path-mode').addEventListener('change', () => {
+    const template = PATH_PRESETS[$('set-path-mode').value];
+    if (template) $('set-template').value = template;
+    saveSettings();
+  });
+  $('set-template').addEventListener('change', syncPathMode);
+
   async function loadSettings() {
     let s;
     try {
@@ -899,12 +947,13 @@
     $('set-quality').value = s.audio_quality || 'high';
     $('set-dolby').checked = !!s.enable_dolby;
     $('set-hires').checked = !!s.enable_hires;
-    $('set-template').value = s.path_template || 'bili/{artist}/{title}';
+    $('set-template').value = s.path_template || PATH_PRESETS.playlist;
+    syncPathMode();
     $('set-embed').checked = s.embed_metadata !== false;
     $('set-format').value = s.transcode_format || '';
     $('set-bitrate').value = String(s.transcode_bitrate != null ? s.transcode_bitrate : 0);
     $('set-interval').value = s.download_interval != null ? s.download_interval : 2;
-    $('set-pause-on-error').checked = s.pause_on_error !== false;
+    $('set-pause-on-error').checked = s.pause_on_error === true;
     $('set-watch-enabled').checked = !!s.watch_favorite_enabled;
     $('set-watch-interval').value = s.watch_interval_minutes != null ? s.watch_interval_minutes : 10;
     syncBitrateEnabled();
@@ -928,7 +977,7 @@
         audio_quality: $('set-quality').value,
         enable_dolby: $('set-dolby').checked,
         enable_hires: $('set-hires').checked,
-        path_template: $('set-template').value.trim() || 'bili/{artist}/{title}',
+        path_template: $('set-template').value.trim() || PATH_PRESETS.playlist,
         embed_metadata: $('set-embed').checked,
         transcode_format: $('set-format').value,
         transcode_bitrate: parseInt($('set-bitrate').value, 10) || 0,
@@ -937,7 +986,10 @@
         watch_favorite_enabled: $('set-watch-enabled').checked,
         watch_favorite_id: parseInt($('set-watch-folder').value, 10) || 0,
         watch_favorite_title: selectedFolder ? selectedFolder.dataset.title || '' : '',
-        watch_interval_minutes: Math.min(1440, Math.max(1, parseInt($('set-watch-interval').value, 10) || 10)),
+        watch_interval_minutes: Math.min(
+          1440,
+          Math.max(1, parseInt($('set-watch-interval').value, 10) || 10),
+        ),
         watch_playlist_id: parseInt($('set-watch-playlist').value, 10) || 0,
         watch_playlist_title: $('set-watch-playlist').selectedOptions[0]?.dataset.title || '',
       };
@@ -949,7 +1001,7 @@
         }
         toast('设置已保存');
       } catch (e) {
-        /* ignore */
+        toast('保存失败：' + (e.message || String(e)));
       }
     }, 500);
   }

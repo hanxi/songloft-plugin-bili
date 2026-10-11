@@ -11,7 +11,16 @@ import {
 import { searchVideosHandler, searchHandler, toponeHandler } from './search';
 import { foldersHandler, folderContentHandler, folderImportHandler } from './favorites';
 import { importSongs } from './importer';
-import { startBatchDownload, getBatchTask, clearBatchTask, pauseBatch, resumeBatch } from './downloader';
+import {
+  startBatchDownload,
+  getBatchTask,
+  clearBatchTask,
+  pauseBatch,
+  resumeBatch,
+  startPreparedBatchDownload,
+  BatchBusyError,
+} from './downloader';
+import { resolveDownloadTemplate, DownloadPathError } from './download-path';
 import { musicUrlHandler } from './music-url';
 import { getSettings, saveSettings } from './store';
 import {
@@ -26,6 +35,12 @@ import { extractFromURL, extractVideoParts } from './extractor';
 import type { BiliVideo } from './search';
 
 const router = createRouter();
+
+function downloadError(error: unknown) {
+  const status =
+    error instanceof BatchBusyError ? 409 : error instanceof DownloadPathError ? 400 : 500;
+  return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, status);
+}
 
 // --- 登录 ---
 router.get('/api/login/status', statusHandler);
@@ -86,18 +101,40 @@ router.post('/api/import', async (req) => {
 });
 
 router.post('/api/import-download', async (req) => {
-  const { items, playlist_name, playlist_id, artist_override } = JSON.parse(String(req.body)) as {
+  const { items, playlist_name, playlist_id, artist_override, download_directory } = JSON.parse(
+    String(req.body),
+  ) as {
     items: BiliVideo[];
     playlist_name?: string;
     playlist_id?: number;
     artist_override?: string;
+    download_directory?: string;
   };
   if (!items || items.length === 0) return jsonResponse({ error: 'items is required' }, 400);
   try {
-    const result = await importSongs(items, playlist_name, playlist_id, artist_override);
-    const songIds = result.songs.map((s) => s.id);
-    const songTitles = new Map(result.songs.map((s) => [s.id, s.title]));
-    await startBatchDownload(songIds, { playlistName: playlist_name, songTitles });
+    const result = await startPreparedBatchDownload(async () => {
+      const playlistName = playlist_id
+        ? (await songloft.playlists.getById(playlist_id))?.name || ''
+        : playlist_name || '';
+      // 路径错误在导入写入之前返回。
+      const settings = await getSettings();
+      const template = resolveDownloadTemplate(
+        settings.path_template,
+        playlistName,
+        download_directory,
+      );
+      const imported = await importSongs(items, playlist_name, playlist_id, artist_override);
+      return {
+        result: imported,
+        songIds: imported.songs.map((s) => s.id),
+        options: {
+          playlistName,
+          songTitles: new Map(imported.songs.map((s) => [s.id, s.title])),
+          downloadDirectory: download_directory,
+          pathTemplate: template,
+        },
+      };
+    });
     return jsonResponse({
       count: result.songs.length,
       total: result.total,
@@ -106,27 +143,51 @@ router.post('/api/import-download', async (req) => {
       download_started: true,
     });
   } catch (e: any) {
-    return jsonResponse({ error: e.message }, 500);
+    return downloadError(e);
   }
 });
 
 // --- 批量下载 ---
 router.post('/api/download-batch', async (req) => {
-  const { song_ids, playlist_name, song_titles } = JSON.parse(String(req.body)) as {
+  const { song_ids, playlist_name, song_titles, download_directory, path_template } = JSON.parse(
+    String(req.body),
+  ) as {
     song_ids: number[];
     playlist_name?: string;
     song_titles?: Record<number, string>;
+    download_directory?: string;
+    path_template?: string;
   };
-  if (!song_ids || song_ids.length === 0) return jsonResponse({ error: 'song_ids is required' }, 400);
-  const titlesMap = song_titles ? new Map(Object.entries(song_titles).map(([k, v]) => [Number(k), v])) : undefined;
-  await startBatchDownload(song_ids, { playlistName: playlist_name, songTitles: titlesMap });
-  return jsonResponse({ started: true, total: song_ids.length });
+  if (
+    !Array.isArray(song_ids) ||
+    song_ids.length === 0 ||
+    song_ids.some((id) => !Number.isInteger(id) || id <= 0)
+  ) {
+    return jsonResponse({ error: 'song_ids must contain positive integer IDs' }, 400);
+  }
+  const titlesMap = song_titles
+    ? new Map(Object.entries(song_titles).map(([k, v]) => [Number(k), v]))
+    : undefined;
+  try {
+    await startBatchDownload(song_ids, {
+      playlistName: playlist_name,
+      songTitles: titlesMap,
+      downloadDirectory: download_directory,
+      pathTemplate: path_template,
+    });
+    return jsonResponse({ started: true, total: song_ids.length });
+  } catch (error) {
+    return downloadError(error);
+  }
 });
 
 router.get('/api/download-batch/progress', async () => {
   const task = getBatchTask();
   if (!task) return jsonResponse({ active: false });
-  const success = task.results.filter((r) => r.status !== 'failed').length;
+  const success = task.results.filter(
+    (r) => r.status !== 'failed' && r.status !== 'skipped',
+  ).length;
+  const skipped = task.results.filter((r) => r.status === 'skipped').length;
   const failed = task.results.filter((r) => r.status === 'failed').length;
   return jsonResponse({
     active: true,
@@ -135,10 +196,13 @@ router.get('/api/download-batch/progress', async () => {
     done: task.done,
     paused: task.paused,
     success,
+    skipped,
     failed,
     results: task.results,
     songs: task.songs,
     playlist_name: task.playlist_name,
+    download_directory: task.download_directory,
+    path_template: task.path_template,
   });
 });
 
@@ -165,8 +229,18 @@ router.get('/api/settings', async () => jsonResponse(await getSettings()));
 router.post('/api/settings', async (req) => {
   const previous = await getSettings();
   const body = JSON.parse(String(req.body));
+  if (body.path_template !== undefined) {
+    try {
+      if (typeof body.path_template !== 'string')
+        throw new DownloadPathError('下载路径模板必须是字符串');
+      resolveDownloadTemplate(body.path_template);
+    } catch (error) {
+      return downloadError(error);
+    }
+  }
   const interval = Number(body.watch_interval_minutes);
-  body.watch_interval_minutes = Number.isInteger(interval) && interval >= 1 && interval <= 1440 ? interval : 10;
+  body.watch_interval_minutes =
+    Number.isInteger(interval) && interval >= 1 && interval <= 1440 ? interval : 10;
   const folderId = Number(body.watch_favorite_id);
   if (body.watch_favorite_enabled === true && (!Number.isInteger(folderId) || folderId <= 0)) {
     return jsonResponse({ error: '请选择要监控的收藏夹' }, 400);

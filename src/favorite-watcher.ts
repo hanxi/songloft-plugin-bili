@@ -1,6 +1,6 @@
 /// <reference types="@songloft/plugin-sdk" />
 
-import { downloadSingleSong, getBatchTask } from './downloader';
+import { downloadSingleSong, isBatchRunning } from './downloader';
 import { fetchFolderItems } from './favorites';
 import { addSongsToPlaylist, importSongs } from './importer';
 import { dedupKeyForVideo, ensureFirstPage, type BiliVideo } from './search';
@@ -17,11 +17,7 @@ const WATCH_RETRY_DELAYS_MS = [
 ];
 
 export type FavoriteWatchItemStatus =
-  | 'baseline'
-  | 'pending'
-  | 'downloading'
-  | 'downloaded'
-  | 'failed';
+  'baseline' | 'pending' | 'downloading' | 'downloaded' | 'failed';
 
 export interface FavoriteWatchItemState {
   key: string;
@@ -70,7 +66,10 @@ function nowIso(): string {
 function safeError(error: unknown): string {
   return String((error as any)?.message || error || 'unknown error')
     .replace(/https?:\/\/\S+/gi, '[url redacted]')
-    .replace(/(?:SESSDATA|bili_jct|DedeUserID|Authorization|Cookie)\s*[:=]\s*[^\s;,]+/gi, '[credential redacted]')
+    .replace(
+      /(?:SESSDATA|bili_jct|DedeUserID|Authorization|Cookie)\s*[:=]\s*[^\s;,]+/gi,
+      '[credential redacted]',
+    )
     .slice(0, 500);
 }
 
@@ -93,7 +92,10 @@ function createWatchItem(item: BiliVideo, status: FavoriteWatchItemStatus): Favo
   };
 }
 
-export async function rebuildFavoriteWatchBaseline(): Promise<{ count: number; state: FavoriteWatchState }> {
+export async function rebuildFavoriteWatchBaseline(): Promise<{
+  count: number;
+  state: FavoriteWatchState;
+}> {
   const settings = await getSettings();
   if (!settings.watch_favorite_enabled || settings.watch_favorite_id <= 0) {
     throw new Error('收藏夹自动监控未启用或未选择收藏夹');
@@ -119,7 +121,11 @@ export async function rebuildFavoriteWatchBaseline(): Promise<{ count: number; s
   return { count: items.length, state };
 }
 
-async function failItem(entry: FavoriteWatchItemState, error: unknown, state: FavoriteWatchState): Promise<void> {
+async function failItem(
+  entry: FavoriteWatchItemState,
+  error: unknown,
+  state: FavoriteWatchState,
+): Promise<void> {
   const message = safeError(error);
   entry.status = 'failed';
   entry.last_error = message;
@@ -148,7 +154,9 @@ async function processWatchItem(item: BiliVideo, state: FavoriteWatchState): Pro
   try {
     const resolvedItem = await ensureFirstPage(item);
     if (resolvedItem.cid) {
-      log(`resolved first page bvid=${resolvedItem.bvid} cid=${resolvedItem.cid} page=${resolvedItem.page || 1} duration=${resolvedItem.duration}`);
+      log(
+        `resolved first page bvid=${resolvedItem.bvid} cid=${resolvedItem.cid} page=${resolvedItem.page || 1} duration=${resolvedItem.duration}`,
+      );
     }
     const imported = await importSongs([resolvedItem]);
     if (!imported.songs.length) throw new Error('import returned no song');
@@ -161,13 +169,28 @@ async function processWatchItem(item: BiliVideo, state: FavoriteWatchState): Pro
     if (settings.watch_playlist_id > 0) {
       try {
         await addSongsToPlaylist(settings.watch_playlist_id, [songId]);
-        log(`added to playlist playlist=${settings.watch_playlist_id} bvid=${entry.bvid} songId=${songId}`);
+        log(
+          `added to playlist playlist=${settings.watch_playlist_id} bvid=${entry.bvid} songId=${songId}`,
+        );
       } catch (error) {
-        log(`playlist add failed playlist=${settings.watch_playlist_id} bvid=${entry.bvid} error=${safeError(error)}`);
+        log(
+          `playlist add failed playlist=${settings.watch_playlist_id} bvid=${entry.bvid} error=${safeError(error)}`,
+        );
       }
     }
 
-    const { result } = await downloadSingleSong(songId);
+    let playlistName = settings.watch_favorite_title;
+    if (settings.watch_playlist_id > 0) {
+      try {
+        playlistName =
+          (await songloft.playlists.getById(settings.watch_playlist_id))?.name || playlistName;
+      } catch (error) {
+        log(
+          `playlist lookup failed playlist=${settings.watch_playlist_id} error=${safeError(error)}`,
+        );
+      }
+    }
+    const { result } = await downloadSingleSong(songId, playlistName);
     if (result?.status === 'failed') throw new Error(result.error || 'download returned failed');
     entry.status = 'downloaded';
     entry.downloaded_path = result?.path;
@@ -179,33 +202,27 @@ async function processWatchItem(item: BiliVideo, state: FavoriteWatchState): Pro
     log(`downloaded bvid=${entry.bvid} songId=${songId}`);
   } catch (error) {
     const message = safeError(error);
-    if (/only remote songs can be downloaded/i.test(message)) {
-      entry.status = 'downloaded';
-      entry.last_error = '';
-      entry.next_retry_at = null;
-      entry.retry_exhausted = false;
-      entry.updated_at = nowIso();
-      await saveWatchState(state);
-      log(`downloaded bvid=${entry.bvid} songId=${entry.song_id || 0} (already local)`);
-      return;
-    }
     await failItem(entry, message, state);
   }
 }
 
-export async function runFavoriteWatchCheck(
-  reason: 'scheduled' | 'manual' | 'retry',
-): Promise<{ started: boolean; skipped?: string; baseline?: boolean; new?: number; retry?: number }> {
+export async function runFavoriteWatchCheck(reason: 'scheduled' | 'manual' | 'retry'): Promise<{
+  started: boolean;
+  skipped?: string;
+  baseline?: boolean;
+  new?: number;
+  retry?: number;
+}> {
   if (watchRunning) return { started: false, skipped: 'already_running' };
   watchRunning = true;
   try {
     const settings = await getSettings();
     if (!settings.watch_favorite_enabled) return { started: false, skipped: 'disabled' };
-    if (settings.watch_favorite_id <= 0) return { started: false, skipped: 'folder_not_configured' };
+    if (settings.watch_favorite_id <= 0)
+      return { started: false, skipped: 'folder_not_configured' };
     log(`check start reason=${reason} folder=${settings.watch_favorite_id}`);
 
-    const batchTask = getBatchTask();
-    if (batchTask && !batchTask.done) {
+    if (isBatchRunning()) {
       const state = await loadWatchState();
       if (state) {
         state.skipped_reason = 'manual_download_active';
@@ -257,13 +274,21 @@ export async function runFavoriteWatchCheck(
     const retryItems: BiliVideo[] = [];
     const now = Date.now();
     for (const [key, entry] of Object.entries(state.items)) {
-      if (entry.status === 'pending' && currentByKey.has(key) && !newItems.some((item) => dedupKeyForVideo(item) === key)) {
+      if (
+        entry.status === 'pending' &&
+        currentByKey.has(key) &&
+        !newItems.some((item) => dedupKeyForVideo(item) === key)
+      ) {
         pendingItems.push(currentByKey.get(key)!);
         continue;
       }
       if (
-        entry.status === 'failed' && entry.retry_exhausted !== true && entry.attempts < WATCH_MAX_ATTEMPTS &&
-        (entry.next_retry_at || 0) <= now && currentByKey.has(key) && !newItems.some((item) => dedupKeyForVideo(item) === key)
+        entry.status === 'failed' &&
+        entry.retry_exhausted !== true &&
+        entry.attempts < WATCH_MAX_ATTEMPTS &&
+        (entry.next_retry_at || 0) <= now &&
+        currentByKey.has(key) &&
+        !newItems.some((item) => dedupKeyForVideo(item) === key)
       ) {
         retryItems.push(currentByKey.get(key)!);
       }
@@ -280,7 +305,8 @@ export async function runFavoriteWatchCheck(
     const interval = Math.max(0, settings.download_interval * 1000);
     for (let i = 0; i < queue.length; i++) {
       await processWatchItem(queue[i], state);
-      if (i < queue.length - 1 && interval > 0) await new Promise((resolve) => setTimeout(resolve, interval));
+      if (i < queue.length - 1 && interval > 0)
+        await new Promise((resolve) => setTimeout(resolve, interval));
     }
     return { started: true, new: newItems.length, retry: pendingItems.length + retryItems.length };
   } catch (error) {
@@ -304,7 +330,10 @@ export async function runFavoriteWatchCheck(
   }
 }
 
-function scheduleNextCheck(settings: Settings, delay = Math.min(1440, Math.max(1, settings.watch_interval_minutes)) * 60_000): void {
+function scheduleNextCheck(
+  settings: Settings,
+  delay = Math.min(1440, Math.max(1, settings.watch_interval_minutes)) * 60_000,
+): void {
   if (watchTimer) clearTimeout(watchTimer);
   nextCheckAt = Date.now() + delay;
   log(`next check scheduled at=${new Date(nextCheckAt).toISOString()}`);
@@ -329,7 +358,10 @@ export async function startFavoriteWatcher(): Promise<void> {
   scheduleNextCheck(settings, STARTUP_DELAY_MS);
 }
 
-export async function reconfigureFavoriteWatcher(previous: Settings, next: Settings): Promise<void> {
+export async function reconfigureFavoriteWatcher(
+  previous: Settings,
+  next: Settings,
+): Promise<void> {
   if (!next.watch_favorite_enabled) {
     if (previous.watch_favorite_enabled) stopFavoriteWatcher();
     return;
@@ -362,9 +394,37 @@ export async function getFavoriteWatchStatus(): Promise<Record<string, unknown>>
   const recentItems = items
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .slice(0, 50)
-    .map(({ key, bvid, aid, title, status, song_id, downloaded_path, attempts, first_seen_at, updated_at, last_error, next_retry_at, retry_exhausted }) => ({
-      key, bvid, aid, title, status, song_id, downloaded_path, attempts, first_seen_at, updated_at, last_error, next_retry_at, retry_exhausted,
-    }));
+    .map(
+      ({
+        key,
+        bvid,
+        aid,
+        title,
+        status,
+        song_id,
+        downloaded_path,
+        attempts,
+        first_seen_at,
+        updated_at,
+        last_error,
+        next_retry_at,
+        retry_exhausted,
+      }) => ({
+        key,
+        bvid,
+        aid,
+        title,
+        status,
+        song_id,
+        downloaded_path,
+        attempts,
+        first_seen_at,
+        updated_at,
+        last_error,
+        next_retry_at,
+        retry_exhausted,
+      }),
+    );
   return {
     enabled: settings.watch_favorite_enabled,
     folder_id: settings.watch_favorite_id,

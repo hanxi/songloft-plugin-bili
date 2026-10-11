@@ -44,6 +44,7 @@
         <select id="import-playlist-select"></select>
         <input id="import-playlist" type="text" placeholder="新建歌单名" style="display:none" />
         <input id="import-artist" type="text" placeholder="艺术家（留空自动识别）" />
+        <input id="import-directory" type="text" placeholder="保存目录（留空使用设置）" aria-label="保存目录" title="相对音乐库目录，例如 我的收藏；仅影响本次下载，不修改艺术家" />
         <button id="import-only" class="btn">仅导入</button>
         <button id="import-download" class="btn btn-primary">导入并下载</button>
       </div>
@@ -81,6 +82,7 @@
         <div class="dl-stats">
           <span><span id="dl-current">0</span> / <span id="dl-total">0</span></span>
           <span class="dl-stat-ok">成功 <span id="dl-success">0</span></span>
+          <span>跳过 <span id="dl-skipped">0</span></span>
           <span class="dl-stat-fail">失败 <span id="dl-failed">0</span></span>
         </div>
         <div class="dl-actions">
@@ -98,6 +100,7 @@
           </button>
         </div>
         <div id="dl-song-list" class="dl-song-list"></div>
+        <div class="field-hint">暂停后可清除未执行队列；已发出的单首下载会继续完成，已下载文件保留。</div>
         <div id="dl-pagination" class="dl-pagination" style="display:none">
           <button id="dl-prev" class="btn btn-sm">
             <span class="material-symbols-outlined">chevron_left</span>
@@ -161,9 +164,18 @@
       <label class="chk"><input type="checkbox" id="set-dolby" /> 优先杜比全景声（需大会员）</label>
       <label class="chk"><input type="checkbox" id="set-hires" /> 优先 Hi-Res 无损（需大会员）</label>
       <div class="field">
+        <label for="set-path-mode">下载目录组织方式</label>
+        <select id="set-path-mode">
+          <option value="playlist">按歌单</option>
+          <option value="flat">统一目录</option>
+          <option value="artist">按艺术家</option>
+          <option value="custom">自定义模板</option>
+        </select>
+      </div>
+      <div class="field">
         <label>下载路径模板</label>
-        <input id="set-template" type="text" placeholder="bili/{artist}/{title}" />
-        <div class="field-hint">相对音乐库目录的保存路径，无需写扩展名（系统自动补全）。可用变量：{title} 标题（必填）、{artist} 艺术家、{album} 专辑、{year} 年份、{genre} 流派。留空则使用默认值 bili/{artist}/{title}。提示：来自 B 站的歌曲通常只有 {title}、{artist}，{album}/{year}/{genre} 可能为空。</div>
+        <input id="set-template" type="text" placeholder="bili/{playlist}/{title}" />
+        <div class="field-hint">相对音乐库目录，无需扩展名。可用变量：{playlist} 歌单（未选择时为「未分类」）、{title} 标题（必填）、{artist} 艺术家、{album} 专辑、{year} 年份、{genre} 流派。留空默认 bili/{playlist}/{title}。也可在导入时单独指定保存目录，无需修改艺术家。</div>
       </div>
       <label class="chk"><input type="checkbox" id="set-embed" /> 下载时嵌入元数据</label>
       <div class="field">
@@ -189,7 +201,8 @@
         <label>下载间隔（秒）</label>
         <input id="set-interval" type="number" min="0" max="30" />
       </div>
-      <label class="chk"><input type="checkbox" id="set-pause-on-error" checked /> 下载出错时自动暂停</label>
+      <label class="chk"><input type="checkbox" id="set-pause-on-error" /> 下载出错时自动暂停</label>
+      <div class="field-hint">默认记录失败并继续后续歌曲；已下载的本地歌曲会自动跳过，不触发暂停。</div>
 
       <div class="section-title">收藏夹自动监控</div>
       <div class="card">
