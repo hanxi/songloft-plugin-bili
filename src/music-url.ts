@@ -3,10 +3,11 @@
 // 按需播放：source_data(bvid[,cid]) → playurl 真实音频 URL。
 // 返回 { url, headers }，headers 携带 Referer，经主程序 header 通道在代理拉取时应用（否则 403）。
 
-import { createMusicUrlHandler } from '@songloft/plugin-sdk';
+import { jsonResponse, type RouteHandler } from '@songloft/plugin-sdk';
 import { biliGet } from './client';
 import { getSettings, type Settings } from './store';
 import { playbackHeaders } from './consts';
+import { BiliApiError, safeBiliMessage } from './request-control';
 
 export type BiliSourceData = {
   bvid?: string;
@@ -67,8 +68,49 @@ export async function resolveBiliAudioUrl(sourceData: BiliSourceData): Promise<{
   return { url, headers: playbackHeaders() };
 }
 
-export const musicUrlHandler = createMusicUrlHandler({
-  resolveUrl: async (sourceData) => {
-    return resolveBiliAudioUrl(sourceData as BiliSourceData);
-  },
-});
+export function biliErrorResponse(error: BiliApiError) {
+  return jsonResponse(
+    {
+      error: error.kind,
+      detail: error.message,
+      http_status: error.httpStatus,
+      bili_code: error.upstreamCode,
+      cooldown_until: error.cooldownUntil,
+    },
+    error.kind === 'risk_control' ? 429 : error.kind === 'source_not_available' ? 404 : 502,
+  );
+}
+
+// SDK 的通用 handler 会丢弃 resolveUrl 异常；在这里保留上游错误供下载器分类。
+export const musicUrlHandler: RouteHandler = async (req) => {
+  let body: any;
+  try {
+    body = JSON.parse(String(req.body || '{}'));
+  } catch {
+    return jsonResponse({ error: 'invalid json body' }, 400);
+  }
+  const sourceData = body?.source_data;
+  if (
+    !sourceData ||
+    typeof sourceData.bvid !== 'string' ||
+    !sourceData.bvid.trim() ||
+    (sourceData.cid !== undefined && (!Number.isInteger(sourceData.cid) || sourceData.cid < 0))
+  ) {
+    return jsonResponse(
+      { error: 'source_data requires bvid and an optional nonnegative integer cid' },
+      400,
+    );
+  }
+  try {
+    return jsonResponse(await resolveBiliAudioUrl(sourceData));
+  } catch (error) {
+    if (error instanceof BiliApiError) return biliErrorResponse(error);
+    return jsonResponse(
+      {
+        error: 'source_not_available',
+        detail: safeBiliMessage((error as Error)?.message || error),
+      },
+      404,
+    );
+  }
+};

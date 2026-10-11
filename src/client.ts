@@ -5,6 +5,7 @@
 import { UA, REFERER, API_BASE } from './consts';
 import { getCookieString } from './store';
 import { getWbiEncodedQuery } from './wbi';
+import { assertBiliAvailable, biliRequestJSON } from './request-control';
 
 export interface BiliResp {
   code: number;
@@ -34,22 +35,12 @@ export async function biliGet(
   params: Record<string, string | number> = {},
   opts: { wbi?: boolean; base?: string; allowNonZero?: boolean } = {},
 ): Promise<BiliResp> {
+  await assertBiliAvailable();
   const base = opts.base || API_BASE;
   let qs = '';
   if (opts.wbi) qs = await getWbiEncodedQuery(params);
   else qs = plainQuery(params);
   const url = base + path + (qs ? `?${qs}` : '');
 
-  const resp = await fetch(url, { headers: await biliHeaders() });
-  const text = await resp.text();
-  let j: BiliResp;
-  try {
-    j = JSON.parse(text);
-  } catch {
-    throw new Error(`B站返回非 JSON (HTTP ${resp.status}): ${text.slice(0, 150)}`);
-  }
-  if (j.code !== 0 && !opts.allowNonZero) {
-    throw new Error(`B站接口错误 ${j.code}: ${j.message || 'unknown'}`);
-  }
-  return j;
+  return biliRequestJSON(url, await biliHeaders(), opts.allowNonZero);
 }

@@ -6,6 +6,7 @@
 
 import { UA, REFERER, API_BASE } from './consts';
 import { getCookieString } from './store';
+import { biliRequestJSON } from './request-control';
 
 const mixinKeyEncTab = [
   46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28,
@@ -52,8 +53,8 @@ async function fetchWbiKeys(): Promise<{ imgKey: string; subKey: string }> {
   const headers: Record<string, string> = { 'User-Agent': UA, Referer: REFERER };
   const cookie = await getCookieString();
   if (cookie) headers.Cookie = cookie;
-  const resp = await fetch(`${API_BASE}/x/web-interface/nav`, { headers });
-  const j = JSON.parse(await resp.text());
+  // 游客 nav 的非零登录状态也可能包含可用的 WBI key。
+  const j = await biliRequestJSON(`${API_BASE}/x/web-interface/nav`, headers, true);
   const imgUrl: string = j?.data?.wbi_img?.img_url || '';
   const subUrl: string = j?.data?.wbi_img?.sub_url || '';
   const imgKey = imgUrl.slice(imgUrl.lastIndexOf('/') + 1, imgUrl.lastIndexOf('.'));

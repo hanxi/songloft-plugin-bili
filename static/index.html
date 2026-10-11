@@ -72,6 +72,7 @@
 
     <!-- 下载 -->
     <section id="tab-download" class="tab-panel">
+      <div id="dl-cooldown" class="field-hint" role="status" style="display:none"></div>
       <div id="download-empty" class="hint">暂无下载任务。</div>
       <div id="download-progress" style="display:none">
         <div class="dl-header">
@@ -199,10 +200,11 @@
       </div>
       <div class="field">
         <label>下载间隔（秒）</label>
-        <input id="set-interval" type="number" min="0" max="30" />
+        <input id="set-interval" type="number" min="0" max="300" />
+        <div class="field-hint">新用户默认 10 秒，已有设置保留；建议按需增大间隔。业务 API 请求至少间隔 1 秒。</div>
       </div>
       <label class="chk"><input type="checkbox" id="set-pause-on-error" /> 下载出错时自动暂停</label>
-      <div class="field-hint">默认记录失败并继续后续歌曲；已下载的本地歌曲会自动跳过，不触发暂停。</div>
+      <div class="field-hint">普通失败默认继续，已下载的本地歌曲自动跳过。遇到 B 站限流或风控会强制暂停，至少冷却 30 分钟；冷却结束后手动恢复。</div>
 
       <div class="section-title">收藏夹自动监控</div>
       <div class="card">

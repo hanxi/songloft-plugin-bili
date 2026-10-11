@@ -270,18 +270,18 @@ test('清除后单首尚未返回时，收藏夹监控仍避让手动下载', as
   await until(() => !api.isBatchRunning());
 });
 
-test('清除下载间隔和限流重试计时器，不再发出下载', async (t) => {
+test('清除下载间隔和超时重试计时器，不再发出下载', async (t) => {
   for (const retry of [false, true]) {
     const { api, calls, delays } = fixture(t, {
       settings: { download_interval: 30 },
       download: async () => {
-        if (retry) throw new Error('HTTP 412');
+        if (retry) throw new Error('call timeout');
         return { status: 'ok' };
       },
     });
     await api.startBatchDownload([1, 2]);
     await until(() => delays.size === 1);
-    assert.equal([...delays.values()][0].ms, retry ? 3000 : 30000);
+    assert.equal([...delays.values()][0].ms, retry ? 1000 : 30000);
     api.clearBatchTask();
     await until(() => {
       try {
@@ -296,16 +296,16 @@ test('清除下载间隔和限流重试计时器，不再发出下载', async (t
   }
 });
 
-test('限流仍按策略重试，返回 failed 结果也视为失败', async (t) => {
+test('瞬时超时仍按策略重试，返回 failed 结果也视为失败', async (t) => {
   let attempts = 0;
   const { api, delays } = fixture(t, {
     download: async () => {
-      if (++attempts < 3) throw new Error('HTTP 412');
+      if (++attempts < 3) throw new Error('call timeout');
       return { status: 'failed', error: '源失效' };
     },
   });
   await api.startBatchDownload([1]);
-  for (const ms of [3000, 8000]) {
+  for (const ms of [1000, 3000]) {
     await until(() => delays.size === 1);
     const [id, timer] = [...delays][0];
     assert.equal(timer.ms, ms);

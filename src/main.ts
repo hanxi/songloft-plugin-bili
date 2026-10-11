@@ -21,7 +21,8 @@ import {
   BatchBusyError,
 } from './downloader';
 import { resolveDownloadTemplate, DownloadPathError } from './download-path';
-import { musicUrlHandler } from './music-url';
+import { musicUrlHandler, biliErrorResponse } from './music-url';
+import { BiliApiError, getBiliCooldown } from './request-control';
 import { getSettings, saveSettings } from './store';
 import {
   getFavoriteWatchStatus,
@@ -37,6 +38,7 @@ import type { BiliVideo } from './search';
 const router = createRouter();
 
 function downloadError(error: unknown) {
+  if (error instanceof BiliApiError) return biliErrorResponse(error);
   const status =
     error instanceof BatchBusyError ? 409 : error instanceof DownloadPathError ? 400 : 500;
   return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, status);
@@ -183,7 +185,8 @@ router.post('/api/download-batch', async (req) => {
 
 router.get('/api/download-batch/progress', async () => {
   const task = getBatchTask();
-  if (!task) return jsonResponse({ active: false });
+  const cooldown = await getBiliCooldown();
+  if (!task) return jsonResponse({ active: false, cooldown });
   const success = task.results.filter(
     (r) => r.status !== 'failed' && r.status !== 'skipped',
   ).length;
@@ -195,6 +198,8 @@ router.get('/api/download-batch/progress', async () => {
     total: task.total,
     done: task.done,
     paused: task.paused,
+    pause_reason: task.pause_reason,
+    cooldown,
     success,
     skipped,
     failed,
@@ -212,8 +217,12 @@ router.post('/api/download-batch/pause', async () => {
 });
 
 router.post('/api/download-batch/resume', async () => {
-  resumeBatch();
-  return jsonResponse({ ok: true });
+  try {
+    await resumeBatch();
+    return jsonResponse({ ok: true });
+  } catch (error) {
+    return downloadError(error);
+  }
 });
 
 router.post('/api/download-batch/clear', async () => {
@@ -254,6 +263,7 @@ router.get('/api/favorite-watch/status', async () => jsonResponse(await getFavor
 router.post('/api/favorite-watch/check', async () => {
   const status = await getFavoriteWatchStatus();
   if (status.running) return jsonResponse({ started: false, skipped: 'already_running' });
+  if (status.cooldown) return jsonResponse({ started: false, skipped: 'risk_control' });
   void runFavoriteWatchCheck('manual');
   return jsonResponse({ started: true });
 });

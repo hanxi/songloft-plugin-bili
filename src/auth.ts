@@ -8,6 +8,7 @@ import { jsonResponse, parseQuery, getSetCookie, parseSetCookie } from '@songlof
 import type { RouteHandler } from '@songloft/plugin-sdk';
 import { UA, REFERER, API_BASE, PASSPORT_BASE } from './consts';
 import { biliGet } from './client';
+import { biliRequestJSON } from './request-control';
 import { getCookieMap, getCookieString, mergeCookies, setCookieFromString, clearCookie } from './store';
 
 const LOGIN_COOKIE_NAMES = ['SESSDATA', 'bili_jct', 'DedeUserID', 'DedeUserID__ckMd5', 'sid'];
@@ -17,10 +18,10 @@ export async function ensureBuvid(): Promise<void> {
   const m = await getCookieMap();
   if (m.buvid3) return;
   try {
-    const resp = await fetch(`${API_BASE}/x/frontend/finger/spi`, {
-      headers: { 'User-Agent': UA, Referer: REFERER },
+    const j = await biliRequestJSON(`${API_BASE}/x/frontend/finger/spi`, {
+      'User-Agent': UA,
+      Referer: REFERER,
     });
-    const j = JSON.parse(await resp.text());
     if (j.code === 0 && j.data) {
       const upd: Record<string, string> = {};
       if (j.data.b_3) upd.buvid3 = j.data.b_3;

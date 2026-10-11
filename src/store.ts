@@ -36,7 +36,7 @@ const DEFAULTS: Settings = {
   enable_hires: false,
   path_template: DEFAULT_DOWNLOAD_TEMPLATE,
   embed_metadata: true,
-  download_interval: 2,
+  download_interval: 10,
   transcode_format: '',
   transcode_bitrate: 0,
   pause_on_error: false,

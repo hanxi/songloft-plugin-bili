@@ -5,6 +5,7 @@ import { fetchFolderItems } from './favorites';
 import { addSongsToPlaylist, importSongs } from './importer';
 import { dedupKeyForVideo, ensureFirstPage, type BiliVideo } from './search';
 import { getSettings, type Settings } from './store';
+import { getBiliCooldown } from './request-control';
 
 const WATCH_STATE_KEY = 'favorite_watch_state_v1';
 const WATCH_MAX_ATTEMPTS = 5;
@@ -218,6 +219,7 @@ export async function runFavoriteWatchCheck(reason: 'scheduled' | 'manual' | 're
   try {
     const settings = await getSettings();
     if (!settings.watch_favorite_enabled) return { started: false, skipped: 'disabled' };
+    if (await getBiliCooldown()) return { started: false, skipped: 'risk_control' };
     if (settings.watch_favorite_id <= 0)
       return { started: false, skipped: 'folder_not_configured' };
     log(`check start reason=${reason} folder=${settings.watch_favorite_id}`);
@@ -304,7 +306,16 @@ export async function runFavoriteWatchCheck(reason: 'scheduled' | 'manual' | 're
     const queue = [...newItems, ...pendingItems, ...retryItems];
     const interval = Math.max(0, settings.download_interval * 1000);
     for (let i = 0; i < queue.length; i++) {
+      if (await getBiliCooldown()) break;
+      if (isBatchRunning()) break;
       await processWatchItem(queue[i], state);
+      const cooldown = await getBiliCooldown();
+      if (cooldown) {
+        state.last_error = cooldown.reason;
+        state.skipped_reason = 'risk_control';
+        await saveWatchState(state);
+        break;
+      }
       if (i < queue.length - 1 && interval > 0)
         await new Promise((resolve) => setTimeout(resolve, interval));
     }
@@ -326,7 +337,11 @@ export async function runFavoriteWatchCheck(reason: 'scheduled' | 'manual' | 're
   } finally {
     watchRunning = false;
     const settings = await getSettings().catch(() => null);
-    if (settings?.watch_favorite_enabled) scheduleNextCheck(settings);
+    if (settings?.watch_favorite_enabled) {
+      const cooldown = await getBiliCooldown();
+      const interval = Math.min(1440, Math.max(1, settings.watch_interval_minutes)) * 60_000;
+      scheduleNextCheck(settings, Math.max(interval, (cooldown?.until || 0) - Date.now()));
+    }
   }
 }
 
@@ -335,6 +350,8 @@ function scheduleNextCheck(
   delay = Math.min(1440, Math.max(1, settings.watch_interval_minutes)) * 60_000,
 ): void {
   if (watchTimer) clearTimeout(watchTimer);
+  // setTimeout 的超长延迟会溢出并立即触发；到期时仍会检查持久化冷却。
+  delay = Math.min(delay, 2_147_483_647);
   nextCheckAt = Date.now() + delay;
   log(`next check scheduled at=${new Date(nextCheckAt).toISOString()}`);
   watchTimer = setTimeout(() => {
@@ -438,6 +455,7 @@ export async function getFavoriteWatchStatus(): Promise<Record<string, unknown>>
     last_scan_success_at: state?.last_scan_success_at || '',
     last_error: state?.last_error || '',
     skipped_reason: state?.skipped_reason || '',
+    cooldown: await getBiliCooldown(),
     counts,
     recent_items: recentItems,
   };

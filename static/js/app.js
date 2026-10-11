@@ -652,22 +652,26 @@
       return;
     }
     if (epoch !== downloadEpoch) return;
+    renderCooldown(r.cooldown);
     if (!r.active) {
-      stopDownloadPolling();
+      if (!r.cooldown) stopDownloadPolling();
       $('download-progress').style.display = 'none';
       $('download-empty').style.display = 'block';
       lastProgress = null;
       return;
     }
+    const alreadyDone = lastProgress && lastProgress.done;
     lastProgress = r;
     renderDownloadProgress(r);
     if (r.done) {
-      stopDownloadPolling();
-      toast('下载完成：成功 ' + r.success + '，跳过 ' + (r.skipped || 0) + '，失败 ' + r.failed);
+      if (!r.cooldown) stopDownloadPolling();
+      if (!alreadyDone)
+        toast('下载完成：成功 ' + r.success + '，跳过 ' + (r.skipped || 0) + '，失败 ' + r.failed);
     }
   }
 
   function renderDownloadProgress(r) {
+    renderCooldown(r.cooldown);
     $('download-progress').style.display = 'block';
     $('download-empty').style.display = 'none';
 
@@ -686,7 +690,7 @@
       badge.textContent = r.failed > 0 ? '已完成（部分失败）' : '已完成';
       badge.classList.add(r.failed > 0 ? 'badge--failed' : 'badge--done');
     } else if (r.paused) {
-      badge.textContent = '已暂停';
+      badge.textContent = r.pause_reason === 'risk_control' ? '风控暂停' : '已暂停';
       badge.classList.add('badge--paused');
     } else {
       badge.textContent = '进行中';
@@ -706,8 +710,22 @@
       $('dl-resume').style.display = r.paused ? '' : 'none';
     }
     if (r.done) $('dl-clear').textContent = '清除记录';
+    $('dl-resume').disabled = !!r.cooldown;
+    $('dl-retry').disabled = !!r.cooldown;
 
     renderDownloadSongList(r.songs || []);
+  }
+
+  function renderCooldown(cooldown) {
+    const hint = $('dl-cooldown');
+    hint.style.display = cooldown ? '' : 'none';
+    hint.textContent = cooldown
+      ? 'B 站限流或风控：' +
+        cooldown.reason +
+        '。冷却至 ' +
+        localTime(cooldown.until) +
+        '，届时可手动恢复。'
+      : '';
   }
 
   function renderDownloadSongList(songs) {
@@ -773,11 +791,13 @@
       return;
     }
     if (epoch !== downloadEpoch) return;
+    renderCooldown(r.cooldown);
     if (r.active) {
       lastProgress = r;
       renderDownloadProgress(r);
-      if (!r.done && !downloadTimer) startDownloadPolling();
+      if ((!r.done || r.cooldown) && !downloadTimer) startDownloadPolling();
     } else {
+      if (r.cooldown && !downloadTimer) startDownloadPolling();
       $('download-empty').style.display = 'block';
       $('download-progress').style.display = 'none';
     }
@@ -800,7 +820,7 @@
       $('dl-resume').style.display = 'none';
       $('dl-pause').style.display = '';
     } catch (e) {
-      toast('恢复失败');
+      toast('恢复失败：' + e.message);
     }
   });
 
@@ -840,6 +860,7 @@
     $('download-empty').style.display = 'block';
     lastProgress = null;
     dlPage = 0;
+    await refreshDownload();
   });
 
   $('dl-prev').addEventListener('click', () => {
@@ -952,7 +973,7 @@
     $('set-embed').checked = s.embed_metadata !== false;
     $('set-format').value = s.transcode_format || '';
     $('set-bitrate').value = String(s.transcode_bitrate != null ? s.transcode_bitrate : 0);
-    $('set-interval').value = s.download_interval != null ? s.download_interval : 2;
+    $('set-interval').value = s.download_interval != null ? s.download_interval : 10;
     $('set-pause-on-error').checked = s.pause_on_error === true;
     $('set-watch-enabled').checked = !!s.watch_favorite_enabled;
     $('set-watch-interval').value = s.watch_interval_minutes != null ? s.watch_interval_minutes : 10;
@@ -1035,6 +1056,10 @@
       '收藏夹：' + (status.folder_title || '-'),
       '目标歌单：' + (status.playlist_id > 0 ? status.playlist_title || '-' : '不加入歌单'),
       '运行状态：' + (status.running ? '检查中' : '空闲'),
+      '风控冷却：' +
+        (status.cooldown
+          ? status.cooldown.reason + '；冷却至 ' + localTime(status.cooldown.until)
+          : '-'),
       '上次检查：' + localTime(status.last_check_at),
       '下次检查：' + localTime(status.next_check_at),
       '',
@@ -1051,7 +1076,13 @@
   $('watch-check-now').addEventListener('click', async () => {
     try {
       const result = await API.apiPost('/api/favorite-watch/check', {});
-      toast(result && result.skipped === 'already_running' ? '检查正在进行' : '已开始检查收藏夹');
+      toast(
+        result && result.skipped === 'already_running'
+          ? '检查正在进行'
+          : result && result.skipped === 'risk_control'
+            ? '风控冷却中，暂不检查收藏夹'
+            : '已开始检查收藏夹',
+      );
       refreshWatchStatus();
     } catch (e) {
       toast('启动检查失败');

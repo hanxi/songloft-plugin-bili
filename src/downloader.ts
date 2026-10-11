@@ -2,6 +2,13 @@
 
 import { getSettings } from './store';
 import { resolveDownloadTemplate } from './download-path';
+import {
+  assertBiliAvailable,
+  beginBiliCooldown,
+  getBiliCooldown,
+  isBiliRiskError,
+  safeBiliMessage,
+} from './request-control';
 
 interface BatchResult {
   song_id: number;
@@ -24,6 +31,7 @@ interface BatchTask {
   total: number;
   done: boolean;
   paused: boolean;
+  pause_reason: '' | 'user' | 'error' | 'risk_control';
   playlist_name: string;
   download_directory: string;
   path_template: string;
@@ -75,13 +83,19 @@ export function clearBatchTask(): void {
 }
 
 export function pauseBatch(): void {
-  if (batchTask && !batchTask.done) batchTask.paused = true;
+  if (batchTask && !batchTask.done) {
+    batchTask.paused = true;
+    if (batchTask.pause_reason !== 'risk_control') batchTask.pause_reason = 'user';
+  }
 }
 
-export function resumeBatch(): void {
-  if (!batchTask || batchTask.done) return;
-  batchTask.paused = false;
-  batchTask.resumeResolve?.();
+export async function resumeBatch(): Promise<void> {
+  const task = batchTask;
+  await assertBiliAvailable();
+  if (!task || task !== batchTask || task.done) return;
+  task.paused = false;
+  task.pause_reason = '';
+  task.resumeResolve?.();
 }
 
 function checkCancelled(task?: RunningBatchTask): void {
@@ -115,20 +129,13 @@ async function waitForDelay(ms: number, task?: RunningBatchTask): Promise<void> 
   checkCancelled(task);
 }
 
-// B站限流 / 风控：412、-412 或通用超时
+// 瞬时超时保留短间隔重试；风控立即进入共享冷却，不重试。
 const TRANSIENT_ERROR_RE =
   /call timeout|scheduler:\s*call timeout|queue full|backpressure|\btimeout\b/i;
-const BILI_RATE_LIMIT_RE = /412|risk\s*control|频率|风控|请求被拦截|访问过于频繁/i;
-
 const RETRY_DELAYS_MS = [1000, 3000];
-const RATE_LIMIT_RETRY_DELAYS_MS = [3000, 8000];
 
 function isTransientError(msg: string): boolean {
   return TRANSIENT_ERROR_RE.test(msg);
-}
-
-function isRateLimitError(msg: string): boolean {
-  return BILI_RATE_LIMIT_RE.test(msg);
 }
 
 async function downloadWithRetry(
@@ -142,9 +149,11 @@ async function downloadWithRetry(
   if (song.type === 'local') {
     return { result: { status: 'skipped', path: song.file_path }, attempts: 0 };
   }
-  const maxAttempts = Math.max(RETRY_DELAYS_MS.length, RATE_LIMIT_RETRY_DELAYS_MS.length);
+  const maxAttempts = RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     if (task) await waitForResume(task);
+    await assertBiliAvailable();
+    checkCancelled(task);
     try {
       const result = await songloft.songs.download(songId, opts);
       checkCancelled(task);
@@ -161,11 +170,14 @@ async function downloadWithRetry(
           return { result: { status: 'skipped', path: existing.file_path }, attempts: attempt + 1 };
         }
       }
-      const rateLimit = isRateLimitError(msg);
+      if (isBiliRiskError(e)) {
+        // music/url 已写入冷却时不再次延长；兼容旧宿主直接传回的 HTTP 412。
+        if (!(await getBiliCooldown())) await beginBiliCooldown(msg);
+        throw e;
+      }
       const transient = isTransientError(msg);
-      const delays = rateLimit ? RATE_LIMIT_RETRY_DELAYS_MS : RETRY_DELAYS_MS;
-      if (attempt >= delays.length || !(rateLimit || transient)) throw e;
-      await waitForDelay(delays[attempt], task);
+      if (attempt >= RETRY_DELAYS_MS.length || !transient) throw e;
+      await waitForDelay(RETRY_DELAYS_MS[attempt], task);
     }
   }
   throw new Error('下载重试次数已耗尽');
@@ -210,6 +222,7 @@ export async function startPreparedBatchDownload<T>(
   assertBatchAvailable();
   preparingBatch = true;
   try {
+    await assertBiliAvailable();
     const prepared = await prepare();
     await startBatch(prepared.songIds, prepared.options);
     return prepared.result;
@@ -231,6 +244,7 @@ async function startBatch(songIds: number[], options?: StartBatchOptions): Promi
     total: songIds.length,
     done: false,
     paused: false,
+    pause_reason: '',
     playlist_name: options?.playlistName || '',
     download_directory: options?.downloadDirectory || '',
     path_template: '',
@@ -241,6 +255,7 @@ async function startBatch(songIds: number[], options?: StartBatchOptions): Promi
   // 在首次 await 前预留批次，避免两个请求同时通过可用性检查。
   batchTask = runningTask = task;
   try {
+    await assertBiliAvailable();
     const settings = await getSettings();
     checkCancelled(task);
     task.path_template = resolveDownloadTemplate(
@@ -251,6 +266,11 @@ async function startBatch(songIds: number[], options?: StartBatchOptions): Promi
     void (async () => {
       try {
         for (let i = 0; i < songIds.length; i++) {
+          // 监控/播放等其他入口触发风控时，保留尚未执行的队列。
+          if (await getBiliCooldown()) {
+            task.paused = true;
+            task.pause_reason = 'risk_control';
+          }
           await waitForResume(task);
           task.current = i + 1;
           task.songs[i].status = 'downloading';
@@ -273,13 +293,15 @@ async function startBatch(songIds: number[], options?: StartBatchOptions): Promi
             task.songs[i].status = result.status === 'skipped' ? 'skipped' : 'ok';
           } catch (e: any) {
             checkCancelled(task);
-            const msg = e?.message || String(e);
+            const msg = safeBiliMessage(e?.message || String(e));
             task.results.push({ song_id: songIds[i], status: 'failed', error: msg });
             task.songs[i].status = 'failed';
             task.songs[i].error = msg;
             // 最后一首失败也已处理完整个队列，无需再等待恢复。
-            if (settings.pause_on_error && i < songIds.length - 1) {
+            const cooling = await getBiliCooldown();
+            if ((cooling || settings.pause_on_error) && i < songIds.length - 1) {
               task.paused = true;
+              task.pause_reason = cooling ? 'risk_control' : 'error';
               await waitForResume(task);
             }
           }
@@ -293,6 +315,7 @@ async function startBatch(songIds: number[], options?: StartBatchOptions): Promi
         }
         task.done = true;
         task.paused = false;
+        task.pause_reason = '';
       } catch (e) {
         if (!(e instanceof BatchCancelledError)) {
           songloft.log.error('批量下载异常: ' + String(e));
