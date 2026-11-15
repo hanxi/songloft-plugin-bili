@@ -1,5 +1,20 @@
 # Lynx migration verification (2026-11-15)
 
+## Compact navigation and actual multipart state (2026-11-16)
+
+2026-11-16: the user authorized this batch's commit/push. Code exactly matches `/tmp/bili-compact/worktree.json`; only this authorization record is added. The pre-commit verification snapshot below is retained. Git/Actions determine actual commits and push-triggered publication results.
+
+Object: bili `f46167e89198e1edd383a2c65adab80feff2abfe` plus this uncommitted worktree. Only the plugin changes; client and parent are unchanged. Linux amd64, Node 22.17.1, Docker Chromium 121. Isolated binary, SQLite, package and patched Web runtime: `/tmp/bili-compact/`, port 30604.
+
+- Remove the global 40px status slot so content follows navigation directly. After account checking, anonymous users see “Not logged in”; signed-in users see a 16px avatar and “Account,” reusing existing image fallback. Read feedback occupies fixed horizontal title/field slots; polling errors do not raise toasts. Operation overlays can be dismissed and success disappears after 2.5 seconds.
+- Missing cid does not establish multiple parts. Known singles have no action; unknown counts use “Details” with lazy resolution, and only confirmed multi-part videos expand/collapse. Extraction supplies actual `part_count`; singles do not duplicate as P1, caches/selections survive collapse, and individual parts remain independently selectable. Search does not prefetch each video's details.
+- All 62 `npm test` cases, frontend typecheck, backend `tsc --noEmit`, native/Web builds and validation pass. Logs: `/tmp/bili-compact-{tests,types,backend-types,build,validate,format}.log`. The final backend count regression and test-format changes are followed by another complete 62-test run; runtime code is unchanged.
+- `tests/compact.browser.cjs` uses real pointer/keyboard input and controlled business fixtures: delayed account reads, login/logout, loaded 16px avatars at 320/390/1100px, local settings retry and dismissible operation errors. Navigation stays 49px high with a 0px gap to content. Single/multi/unknown counts, no eager reads, cached collapse and individual-part selection pass, with one request for each explicitly resolved video. Log: `/tmp/bili-compact-browser.log`; screenshots `/tmp/bili-compact-{initial,account,search}.png` in Chrome. An early driver click was covered by the temporary operation overlay; the script now explicitly dismisses it. Adding an account round-trip exposed a fixture that always returned anonymous; its state now follows login/logout without changing product authentication.
+- Existing 30 viewport/theme/page combinations, short-viewport save/readback, 42px titles, thousand-playlist pagination, delayed navigation and real CDN/failed/empty covers pass. Delayed/failing settings polling still produces zero title/navigation/viewport movement, retains the same node and 240px offset, and makes zero anonymous favorites calls. Logs: `/tmp/bili-compact-{layout,details,stability,interaction}.log`.
+- The published `v2026.11.16.0` Web bundle fails the new browser check because it retains the global status slot. An isolated copy with the old extractor fails the new count regression because `part_count` is absent. Logs: `/tmp/bili-compact-{negative,parts-negative}.log`.
+
+Not run: native Android/iOS/HarmonyOS interactions or Flutter. Previous Android emulator host startup exited 139; browser checks are not native acceptance. Real Bili cookies/QR, imports and downloads are untested; browser accounts/videos are fixtures. No commits, pushes or releases. Final file inventory: `/tmp/bili-compact/worktree.json`.
+
 ## Main navigation, long titles, parts and playlist picking (2026-11-15)
 
 2026-11-16: commits/pushes are authorized. The pre-commit verification snapshot below is retained; code exactly matches `/tmp/bili-followup/worktrees.json`, with only authorization records added. Git/Actions determine actual commits, CI and existing push-triggered publication results.

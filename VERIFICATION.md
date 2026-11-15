@@ -1,5 +1,20 @@
 # Lynx 迁移验证（2026-11-15）
 
+## 紧凑导航与真实分 P 状态（2026-11-16）
+
+2026-11-16：用户已授权本批提交推送；代码与 `/tmp/bili-compact/worktree.json` 完全一致，本轮仅补充授权记录。下文保留提交前验证快照，实际提交及推送触发的自动发布结果以 Git/Actions 为准。
+
+对象：bili `f46167e89198e1edd383a2c65adab80feff2abfe` 加本批未提交工作树。只修改插件；客户端及主仓库未改。Linux amd64、Node 22.17.1、Docker Chromium 121；隔离二进制、SQLite、插件包及已修复的 Web 运行时位于 `/tmp/bili-compact/`，端口 30604。
+
+- 取消顶部 40px 状态槽，导航下直接承接内容。账号检查完成后游客显示「未登录」，登录后显示 16px 头像及「账号」，图片复用已有失败回退。读取反馈放在对应标题/字段的固定横向槽中，后台轮询错误不弹浮层；操作反馈采用可关闭浮层，成功 2.5 秒自动消失。
+- 缺少 cid 不等于多 P：已知单曲不显示入口，未知数量显示「详情」并按需读取；确认多 P 才展开、收起。提取结果携带实际 `part_count`；单曲不重复展开 P1，缓存复用、选中状态及各 P 独立选择保留。搜索不逐条预取详情。
+- `npm test` 62 项、前端 typecheck、后端 `tsc --noEmit`、原生/Web 双包构建和 validate 通过。日志 `/tmp/bili-compact-{tests,types,backend-types,build,validate,format}.log`。最后新增后端数量回归及测试格式调整后重跑完整 62 项通过，运行时代码未变。
+- `tests/compact.browser.cjs` 使用真实指针/键盘和受控业务数据：账号慢读、登录/退出、头像在 320/390/1100px 的尺寸和加载、设置失败后就地重试、操作错误浮层关闭；导航高度始终 49px，内容与导航间隙 0px。单曲/多 P/未知数量、无额外预取、缓存折叠和单 P 选择均通过，三条显式详情读取各一次。日志 `/tmp/bili-compact-browser.log`；截图 `/tmp/bili-compact-{initial,account,search}.png`（Chrome 容器）。首轮脚本点击被短暂操作浮层遮挡，改为真实点击关闭后继续；后续增加账号页往返时暴露测试夹具固定返回游客，改为随登录/退出同步状态，未修改产品登录行为。
+- 原有 30 组尺寸/主题/页面检查、短视口保存读回、42px 长标题、千歌单分页、慢请求切页及真实 CDN/失败/空封面均通过。设置轮询含延迟和失败时，标题/导航/滚动区位移仍为 0px，保留原节点和 240px 滚动偏移，匿名收藏夹请求 0 次。日志 `/tmp/bili-compact-{layout,details,stability,interaction}.log`。
+- 使用已发布 `v2026.11.16.0` 的旧 Web bundle，同一新浏览器回归因仍有顶部状态槽失败；隔离副本恢复旧提取器后，新增数量回归因缺少 `part_count` 失败。日志 `/tmp/bili-compact-{negative,parts-negative}.log`。
+
+Not run：本批 Android/iOS/HarmonyOS 原生交互及 Flutter，先前 Android 模拟器启动宿主退出 139，未把浏览器当作原生验收。未测试真实 B 站 Cookie/扫码、导入及下载；浏览器账号和视频为夹具。无提交、推送或发布。最终文件指纹 `/tmp/bili-compact/worktree.json`。
+
 ## 主导航状态、长标题、分 P 与歌单选择（2026-11-15）
 
 2026-11-16：用户授权提交推送，下文保留提交前验证快照；代码与 `/tmp/bili-followup/worktrees.json` 完全一致，仅补授权记录。实际提交、CI 和推送触发的既有自动发布结果以 Git/Actions 为准。

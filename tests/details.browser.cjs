@@ -56,6 +56,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
               title: '超长标题LongUnbrokenMusicTitle'.repeat(30),
               author: '演奏者'.repeat(10),
               duration: 180,
+              part_count: 2,
               cover: '',
             },
           ],
@@ -116,7 +117,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
       () =>
         !document
           .getElementById('plugin-view')
-          .shadowRoot.querySelector('.status-slot')
+          .shadowRoot.querySelector('.body.active .resource-status')
           ?.textContent.trim(),
     )
     const tap = async (label) => {

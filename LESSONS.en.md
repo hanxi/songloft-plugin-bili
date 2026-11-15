@@ -12,6 +12,8 @@ Keep synchronized with [Chinese](LESSONS.md); see [release rules](docs/en/releas
 
 ## UI-001: Interaction checks do not replace migration layout acceptance
 
+- 2026-11-16 follow-up: the fixed 40px global status row prevents shifting but wastes narrow-screen space. Account-tab identity, fixed-width title feedback and operation overlays retain zero geometry movement without an empty row. Missing cid means unresolved metadata, not multiple parts. Resolve unknown counts lazily, avoid duplicating single videos as P1, and keep individual-part selection separate from parent-group toggling. All 62 tests and real-browser checks cover this; old-bundle space and old-extractor count regressions fail. See the latest verification record. This remains the same UI incident and does not increment Seen.
+
 - Same-day follow-up: retained inner tabs still disappear if native routing destroys the frame; stable client Shell ownership is required. Long titles must reserve cover/action width, parts data and expansion must be separate, and large playlist selectors need bounded searchable lists. The 320px/1000-playlist regression checks two-line titles, one parts request and selection/cancellation; the old bundle fails at collapse. Native default input values must remain stable rather than echoing each keystroke. See this batch's verification. This incident does not increment Seen.
 
 - Scope: bili's HTML to ReactLynx migration; baseline `b1324026a69673b3e086d20e4a74b662fa238cdb`.

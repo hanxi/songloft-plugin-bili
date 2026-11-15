@@ -17,6 +17,7 @@ import type { Settings } from '../../src/store'
 import type { BiliVideo } from '../../src/search'
 import { createReadCache, coverSource } from './requests'
 import { optionPage, type Option } from './options'
+import { partsLabel } from './video-parts'
 import './style.css'
 
 type Data = Record<string, any>
@@ -28,15 +29,20 @@ function Button({
   disabled = false,
   selected = false,
   variant = 'secondary',
+  icon,
+  tabKey,
 }: {
   children: ReactNode
   onTap: () => void
   disabled?: boolean
   selected?: boolean
   variant?: 'secondary' | 'primary' | 'tab' | 'link'
+  icon?: ReactNode
+  tabKey?: string
 }) {
   return (
     <view
+      data-tab={tabKey}
       className={
         'button button-' +
         variant +
@@ -47,6 +53,7 @@ function Button({
         if (!disabled) onTap()
       }}
     >
+      {icon}
       <text text-maxline="2" text-overflow="ellipsis">
         {children}
       </text>
@@ -202,8 +209,10 @@ function Choice({
   change,
   compact = false,
   openPicker,
+  status,
 }: {
   openPicker?: (request: PickerRequest) => void
+  status?: ReactNode
   compact?: boolean
   label: string
   value: string
@@ -212,7 +221,10 @@ function Choice({
 }) {
   return (
     <view className="field">
-      <text>{label}</text>
+      <view className="field-heading">
+        <text className="choice-label">{label}</text>
+        {status}
+      </view>
       {compact && (
         <Button onTap={() => openPicker?.({ label, value, options, change })}>
           {options.find(([v]) => v === value)?.[1] || '选择歌单'} ▾
@@ -241,15 +253,26 @@ function Section({
   title,
   description,
   children,
+  status,
 }: {
   plain?: boolean
   title: string
   description?: string
   children: ReactNode
+  status?: ReactNode
 }) {
   return (
     <view className={plain ? 'section section-search' : 'section'}>
-      <text className="section-title">{title}</text>
+      <view className="section-heading">
+        <text
+          className="section-title"
+          text-maxline="1"
+          text-overflow="ellipsis"
+        >
+          {title}
+        </text>
+        {status}
+      </view>
       {description && (
         <text className="muted section-description">{description}</text>
       )}
@@ -329,7 +352,13 @@ function fetchCover(url: string): Promise<string> {
   coverPending.set(url, task)
   return task
 }
-function Cover({ source }: { source: string }) {
+function Cover({
+  source,
+  avatar = false,
+}: {
+  source: string
+  avatar?: boolean
+}) {
   const original = coverSource(source)
   const [src, setSrc] = useState(coverCache.get(original) || original)
   const [failed, setFailed] = useState(false)
@@ -357,8 +386,8 @@ function Cover({ source }: { source: string }) {
     }
   }
   return (
-    <view className="cover">
-      <text className="cover-placeholder">♪</text>
+    <view className={'cover' + (avatar ? ' cover-avatar' : '')}>
+      <text className="cover-placeholder">{avatar ? '✓' : '♪'}</text>
       {!!src && !failed && (
         <image
           className="cover-image"
@@ -456,7 +485,10 @@ export function App() {
       setFolder(null)
       setPreview([])
       loadedResources.current.delete('收藏夹')
-      setResources((old) => ({ ...old, 收藏夹: { loading: false, error: '' } }))
+      setResources((old) => ({
+        ...old,
+        收藏夹: { loading: false, error: '' },
+      }))
     }
   }
   function read(name: string, action: () => Promise<void>) {
@@ -527,21 +559,27 @@ export function App() {
         : page === '收藏夹' && !account.logged_in
           ? []
           : [page]
-  const visibleResources = pageResources(tab)
-  const failedResources = visibleResources.filter(
-    (name) => resources[name]?.error,
-  )
-  const loadingResources = visibleResources.filter(
-    (name) => resources[name]?.loading,
-  )
-  const statusText =
-    message && message !== '操作完成'
-      ? message
-      : failedResources.length
-        ? failedResources.join('、') + '加载失败，点击重试'
-        : loadingResources.length
-          ? '正在加载' + loadingResources.join('、') + '…'
-          : ''
+  function resourceStatus(...names: string[]) {
+    const failed = names.filter((name) => resources[name]?.error)
+    const loading = names.some((name) => resources[name]?.loading)
+    return (
+      <view
+        className={'resource-status' + (failed.length ? ' failed' : '')}
+        data-resource={names.join(',')}
+        bindtap={() => failed.forEach((name) => void loadResource(name))}
+      >
+        <text text-maxline="1" text-overflow="ellipsis">
+          {failed.length ? '点击重试' : loading ? '加载中…' : ''}
+        </text>
+      </view>
+    )
+  }
+  useEffect(() => {
+    if (message !== '操作完成') return
+    const owner = tab
+    const timer = setTimeout(() => setMessage('', owner), 2500)
+    return () => clearTimeout(timer)
+  }, [tab, message])
   useEffect(() => {
     if (account.logged_in && (tab === '设置' || tab === '收藏夹'))
       void loadResource('收藏夹')
@@ -666,7 +704,7 @@ export function App() {
     }
   }
   function toggle(v: BiliVideo) {
-    const items = parts[v.bvid] || [v]
+    const items = !v.cid && parts[v.bvid]?.length ? parts[v.bvid] : [v]
     setSelected((old) => {
       const copy = { ...old },
         all = items.every((item) => copy[key(item)])
@@ -741,11 +779,13 @@ export function App() {
               >
                 {v.author} · {Math.floor(v.duration / 60)}:
                 {String(v.duration % 60).padStart(2, '0')}
-                {v.page ? ' · P' + v.page : ''}
+                {v.page && (v.part_count || parts[v.bvid]?.length || 0) > 1
+                  ? ' · P' + v.page
+                  : ''}
               </text>
             </view>
           </view>
-          {selectable && !v.cid && (
+          {selectable && partsLabel(v, parts[v.bvid]) && (
             <Button
               disabled={busy}
               onTap={() => {
@@ -766,13 +806,17 @@ export function App() {
                     (item: BiliVideo) => ({
                       ...item,
                       cover: item.cover || v.cover,
+                      part_count: (r.items || []).length,
                     }),
                   )
                   setParts((old) => ({ ...old, [v.bvid]: items }))
-                  setExpandedParts((old) => ({ ...old, [v.bvid]: true }))
+                  setExpandedParts((old) => ({
+                    ...old,
+                    [v.bvid]: items.length > 1,
+                  }))
                   setSelected((old) => {
                     const copy = { ...old }
-                    if (copy[key(v)]) {
+                    if (items.length && copy[key(v)]) {
                       delete copy[key(v)]
                       for (const p of items) copy[key(p)] = p
                     }
@@ -781,7 +825,7 @@ export function App() {
                 })
               }}
             >
-              {expandedParts[v.bvid] ? '收起' : '分 P'}
+              {partsLabel(v, parts[v.bvid], expandedParts[v.bvid])}
             </Button>
           )}
         </view>
@@ -817,22 +861,18 @@ export function App() {
           <Button
             key={t}
             variant="tab"
+            tabKey={t}
             selected={tab === t}
             onTap={() => changeTab(t)}
+            icon={
+              t === '账号' && account.logged_in ? (
+                <Cover source={String(account.face || '')} avatar />
+              ) : undefined
+            }
           >
-            {t}
+            {t === '账号' && account.logged_in === false ? '未登录' : t}
           </Button>
         ))}
-      </view>
-      <view
-        className="status-slot"
-        bindtap={() =>
-          failedResources.forEach((name) => void loadResource(name))
-        }
-      >
-        <text className="status-text" text-maxline="1">
-          {statusText}
-        </text>
       </view>
       <view className="page-stack">
         {tabs
@@ -906,6 +946,7 @@ export function App() {
                             compact
                             openPicker={setPicker}
                             label="导入目标歌单"
+                            status={resourceStatus('歌单')}
                             value={playlist}
                             options={[
                               ['', '不加入歌单'],
@@ -976,9 +1017,12 @@ export function App() {
                     </>
                   )}
                   {pageTab === '收藏夹' && (
-                    <>
+                    <Section
+                      title="我的收藏夹"
+                      status={resourceStatus('收藏夹')}
+                    >
                       {!folder && !folders.length && (
-                        <Section title="我的收藏夹">
+                        <>
                           <text className="muted">
                             {account.logged_in
                               ? '暂无收藏夹'
@@ -989,7 +1033,7 @@ export function App() {
                               前往登录
                             </Button>
                           )}
-                        </Section>
+                        </>
                       )}
                       {folder ? (
                         <>
@@ -1045,10 +1089,10 @@ export function App() {
                           </view>
                         ))
                       )}
-                    </>
+                    </Section>
                   )}
                   {pageTab === '下载' && (
-                    <Section title="下载任务">
+                    <Section title="下载任务" status={resourceStatus('下载')}>
                       {progress.cooldown && (
                         <text className="notice">
                           {progress.cooldown.reason} · 冷却至{' '}
@@ -1160,6 +1204,7 @@ export function App() {
                   {pageTab === '账号' && (
                     <Section
                       title="B 站账号"
+                      status={resourceStatus('账号')}
                       description="扫码登录或粘贴 Cookie，登录信息保存在服务端。"
                     >
                       <text>
@@ -1198,9 +1243,17 @@ export function App() {
                       )}
                     </Section>
                   )}
+                  {pageTab === '设置' && !settings && (
+                    <Section title="音质与下载" status={resourceStatus('设置')}>
+                      <text className="muted">等待加载设置</text>
+                    </Section>
+                  )}
                   {pageTab === '设置' && settings && (
                     <>
-                      <Section title="音质与下载">
+                      <Section
+                        title="音质与下载"
+                        status={resourceStatus('设置')}
+                      >
                         <Choice
                           label="音质"
                           value={settings.audio_quality}
@@ -1284,6 +1337,7 @@ export function App() {
                       </Section>
                       <Section
                         title="收藏夹自动监控"
+                        status={resourceStatus('同步状态')}
                         description="首次启用仅建立基线，之后处理新加入的收藏。"
                       >
                         <Toggle
@@ -1296,6 +1350,7 @@ export function App() {
                             compact
                             openPicker={setPicker}
                             label="监控收藏夹"
+                            status={resourceStatus('收藏夹')}
                             value={String(settings.watch_favorite_id)}
                             options={[
                               [
@@ -1333,6 +1388,7 @@ export function App() {
                           compact
                           openPicker={setPicker}
                           label="监控目标歌单"
+                          status={resourceStatus('歌单')}
                           value={String(settings.watch_playlist_id)}
                           options={[
                             [
@@ -1460,6 +1516,20 @@ export function App() {
             </view>
           ))}
       </view>
+      {!!message && (
+        <view className="action-toast">
+          <text
+            className="action-toast-text"
+            text-maxline="2"
+            text-overflow="ellipsis"
+          >
+            {message}
+          </text>
+          <view className="action-toast-close" bindtap={() => setMessage('')}>
+            <text>×</text>
+          </view>
+        </view>
+      )}
       {picker && (
         <OptionPicker request={picker} close={() => setPicker(null)} />
       )}

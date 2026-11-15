@@ -50,9 +50,12 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
     const click = async (label) => {
       const rect = await page.evaluate((label) => {
         const root = document.getElementById('plugin-view').shadowRoot
-        const text = [
-          ...root.querySelectorAll('.tabs x-text, .body.active x-text'),
-        ].find((e) => e.textContent.trim() === label)
+        const tab = root.querySelector('.button-tab[data-tab="' + label + '"]')
+        const text =
+          tab ||
+          [...root.querySelectorAll('.tabs x-text, .body.active x-text')].find(
+            (e) => e.textContent.trim() === label,
+          )
         if (!text) throw new Error('Missing control: ' + label)
         const el = text.closest('.button') || text
         el.scrollIntoView({ block: 'center' })
@@ -66,8 +69,8 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
           (label) =>
             document
               .getElementById('plugin-view')
-              .shadowRoot.querySelector('.button-tab.selected')?.textContent ===
-            label,
+              .shadowRoot.querySelector('.button-tab.selected')
+              ?.getAttribute('data-tab') === label,
           {},
           label,
         )

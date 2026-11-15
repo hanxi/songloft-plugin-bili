@@ -34,6 +34,30 @@ const audio = {
   data: { dash: { audio: [{ id: 30280, baseUrl: 'https://cdn/audio.m4a' }] } },
 };
 
+test('video details distinguish single tracks from multi-part counts', async (t) => {
+  for (const count of [1, 2]) {
+    const { request } = fixture(t, {
+      fetchResponse: (url) => {
+        assert.equal(new URL(url).pathname, '/x/web-interface/view');
+        return response({
+          code: 0,
+          data: {
+            bvid: 'BVcount', aid: 1, title: '主标题',
+            pages: Array.from({ length: count }, (_, i) => ({
+              cid: i + 1, page: i + 1, part: '曲目' + (i + 1), duration: 180,
+            })),
+          },
+        });
+      },
+    });
+    const result = await request('/api/videos/BVcount/parts', {}, 'GET');
+    assert.equal(result.status, 200);
+    assert.equal(result.body.items.length, count);
+    assert.ok(result.body.items.every((v) => v.part_count === count));
+    assert.equal(result.body.items[0].title, count === 1 ? '主标题' : '曲目1');
+  }
+});
+
 function response(body, status = 200, headers = {}) {
   return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers });
 }

@@ -67,7 +67,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
       await page.evaluate((label) => {
         const root = document.getElementById('plugin-view').shadowRoot
         const el = [...root.querySelectorAll('.button-tab')].find(
-          (e) => e.textContent === label,
+          (e) => (e.getAttribute('data-tab') || e.textContent) === label,
         )
         el.click()
       }, label)
@@ -151,7 +151,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
     const visible = await page.evaluate(() => {
       const root = document.getElementById('plugin-view').shadowRoot
       return [
-        ...root.querySelectorAll('.status-slot x-text, .body.active x-text'),
+        ...root.querySelectorAll('.action-toast x-text, .body.active x-text'),
       ]
         .map((e) => e.textContent)
         .join('\n')

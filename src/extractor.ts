@@ -186,6 +186,7 @@ function mapArchivePages(data: any): BiliVideo[] {
         aid,
         cid: Number(p.cid),
         page,
+        part_count: total,
         title: total > 1 ? (p.part || `${data.title || bvid} P${page}`) : (data.title || p.part || bvid),
         author,
         cover,

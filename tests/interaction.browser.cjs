@@ -201,7 +201,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
             () =>
               document
                 .getElementById('plugin-view')
-                .shadowRoot.querySelector('.status-slot')?.textContent,
+                .shadowRoot.querySelector('.action-toast')?.textContent,
           ),
         )
         await page.screenshot({ path: '/tmp/bili-stability-search-debug.png' })
