@@ -101,6 +101,6 @@ Apache-2.0 © 2026 Songloft Team
 
 前端源码位于 `frontend/`，由 ReactLynx 同时构建原生与 Web bundle；Flutter 等客户端使用工具链生成的 Web 回退入口。后端 API、账号、设置、下载队列和监控数据保持兼容。需要包含 `plugin.apiRequest` 支持的 Lynx 宿主；Web 回退需要服务端提供新版桥接 shim。
 
-SDK 和构建器均固定使用 npm 正式包 `2.20.0`。执行 `pnpm install --frozen-lockfile`、`npm --prefix frontend ci`、`pnpm run build`；`npm --prefix frontend run typecheck` 检查前端类型。独立克隆本仓库即可构建，无需相邻的工具链源码。
+开发环境要求 Node.js ≥22.14（Web 构建的 WebAssembly 工具不支持 Node 20）。SDK 和构建器均固定使用 npm 正式包 `2.20.0`。执行 `pnpm install --frozen-lockfile`、`npm --prefix frontend ci`、`pnpm run build`；`npm --prefix frontend run typecheck` 检查前端类型。独立克隆本仓库即可构建，无需相邻的工具链源码。
 
 验证结果和未跑场景见 [迁移验证](VERIFICATION.md)。根目录依赖统一使用 pnpm lockfile；前端子项目由构建器使用 npm 安装，保留自己的 package-lock。

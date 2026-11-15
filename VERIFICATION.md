@@ -26,3 +26,5 @@ Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制
 本轮 Android 复验中，模拟器宿主在启动及打开插件后以 segmentation fault（退出码 139）退出，未取得新的交互截图。未将本轮记为通过；保留前轮真实模拟器保存设置的证据，以及相同 zipHash 的产物关联。
 
 独立 CI 首轮因工作流显式 pnpm 9 与 packageManager 的 9.15.0 重复声明而失败；已统一由项目 packageManager 决定版本，保留 `/tmp/songloft-bili-first-ci-failure.log`，最终 CI 结果以提交对应运行记录为准。
+
+独立 CI 第二轮在 Node 20 编译 WebAssembly 工具时失败（Unknown heap type -14），原生 bundle 已编译。开发及两条工作流统一为 Node.js ≥22.14；保留 `/tmp/songloft-bili-ci-second-failure.log`，由后续同一源码的 Node 22 CI 验证。

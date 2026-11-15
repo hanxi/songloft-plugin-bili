@@ -26,3 +26,5 @@ With published dependencies, backend/frontend typechecks, 38 regressions, native
 During this round of Android revalidation, the emulator host exited with segmentation fault (139) after boot and opening the plugin. No new interaction screenshot was obtained and this round is not recorded as passing. Prior real-emulator settings-persistence evidence and the matching package zipHash remain recorded.
 
 The first independent CI run failed because workflow pnpm 9 conflicted with packageManager 9.15.0. Both workflows now read the project-declared version. The initial failure log is retained at `/tmp/songloft-bili-first-ci-failure.log`; final CI status is attached to the corresponding commit run.
+
+The second independent CI run failed compiling the WebAssembly build tool on Node 20 (Unknown heap type -14); the native bundle compiled. Development and both workflows now require Node.js ≥22.14. The failure log remains at `/tmp/songloft-bili-ci-second-failure.log`; the subsequent Node 22 CI validates this source.

@@ -6,7 +6,7 @@ Songloft plugin for Bilibili music: QR/Cookie login, video search and URL extrac
 
 `frontend/` uses ReactLynx and the Lynx plugin SDK. Builds include native and Web bundles; Flutter clients use the generated Web fallback. Existing APIs, accounts, settings, download queues and monitoring storage remain compatible. The Lynx host must support `plugin.apiRequest`; Web fallback requires the updated server bridge shim.
 
-The SDK and builder are pinned to npm version `2.20.0`. Run `pnpm install --frozen-lockfile`, `npm --prefix frontend ci`, and `pnpm run build`. Use `npm --prefix frontend run typecheck` and `pnpm test` for validation. An independent clone builds without an adjacent toolchain checkout.
+Node.js ≥22.14 is required; the Web build uses a WebAssembly tool unsupported by Node 20. The SDK and builder are pinned to npm version `2.20.0`. Run `pnpm install --frozen-lockfile`, `npm --prefix frontend ci`, and `pnpm run build`. Use `npm --prefix frontend run typecheck` and `pnpm test` for validation. An independent clone builds without an adjacent toolchain checkout.
 
 ## Features
 
