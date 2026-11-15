@@ -12,6 +12,8 @@ Keep synchronized with [Chinese](LESSONS.md); see [release rules](docs/en/releas
 
 ## UI-001: Interaction checks do not replace migration layout acceptance
 
+- Same-day follow-up: retained inner tabs still disappear if native routing destroys the frame; stable client Shell ownership is required. Long titles must reserve cover/action width, parts data and expansion must be separate, and large playlist selectors need bounded searchable lists. The 320px/1000-playlist regression checks two-line titles, one parts request and selection/cancellation; the old bundle fails at collapse. Native default input values must remain stable rather than echoing each keystroke. See this batch's verification. This incident does not increment Seen.
+
 - Scope: bili's HTML to ReactLynx migration; baseline `b1324026a69673b3e086d20e4a74b662fa238cdb`.
 - Evidence: release `v2026.11.15.0` fails the same real-browser regression at 320px: its fifth navigation item wraps to y=56 while the others remain at y=10 (`/tmp/songloft-bili-layout-negative-browser.log`). Saving settings had passed during migration despite lost form grouping and selected states.
 - Rule: preserve information hierarchy and narrow-screen navigation. Use explicit input classes instead of inconsistent cross-platform tag selectors. Web x-input uses `display: contents`; inspect the real input inside its shadow root for dimensions and interaction instead of treating the zero-sized host as invisible.

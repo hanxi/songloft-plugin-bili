@@ -1,5 +1,19 @@
 # Lynx 迁移验证（2026-11-15）
 
+## 主导航状态、长标题、分 P 与歌单选择（2026-11-15）
+
+2026-11-16：用户授权提交推送，下文保留提交前验证快照；代码与 `/tmp/bili-followup/worktrees.json` 完全一致，仅补授权记录。实际提交、CI 和推送触发的既有自动发布结果以 Git/Actions 为准。
+
+对象 bili `2317a4a8a3d0964571a52725b7bcd2fb3e2124d2` + 本批工作树，配合 Lynx 客户端 `2447fade1affad9dda94f0bd68aff932680d91d8` + 工作树的原生 frame 保留。主导航缓存属于客户端 Shell，不用插件服务端存储跨设备共享界面状态；旧客户端只更新插件不能修复原生 frame 销毁。
+
+Linux / Node 22.17.1 / Docker Chromium 121，隔离数据库端口 30602：59 项测试、前后端类型检查、原生/Web 构建和 validate 通过。`tests/details.browser.cjs` 验证 320px 两行混合长标题高 42px、按钮不重叠、分 P 展开/收起/再展开仅一次请求，以及 1000 歌单仅渲染 20 行、实际输入搜索“999”、选择与取消。旧包对照因找不到“收起”入口失败。日志 `/tmp/bili-followup-{tests,types,backend-types,build,validate,browser,browser-negative}.log`。原有稳定性与 30 组布局/短视口保存读回通过，日志 `/tmp/bili-followup-{stability,layout}.log`。原生界面输入值改为固定默认值，仅外部更新反写，避免每次输入的回显竞态。
+
+客户端 3820 项测试、89 项发布检查、类型、双包及 Web 构建通过；原生分支组件测试保留同一 frame/搜索状态、暂停隐藏页和升级/停用清理。隔离破坏保留行为后回归失败；见客户端 `docs/project/bili-plugin-interaction.md` 及 `/tmp/bili-followup-host-negative.log`。首轮客户端测试的查询隔离 mock 与冗余玻璃表面错误已修复，未放宽表面闸门。
+
+真实键盘回归还发现 Web 宿主在自定义元素升级前丢失事件绑定；已同时补齐固定 web-core 的开发/生产实现。生产方法的 3 项回归通过，旧包对照 2 项失败。HTML 回退依赖更新后的服务端 `web-core/`；本轮核对 HTTP 资源哈希后，以无事件注入/补绑的正常键盘和指针操作再次通过上述场景。日志 `/tmp/bili-followup-{events,event-negative,browser}.log`；运行时资源身份详见客户端记录。
+
+Not run：本批 Android 原生真机、Flutter、iOS/HarmonyOS、真实 B 站导入下载。Web 截图不当作 Android 验收；先前模拟器启动宿主时退出 139。本批未提交、推送或发布。最终双仓库文件指纹 `/tmp/bili-followup/worktrees.json`。
+
 基线：bili `290b9767f4e7416c0a7a2c077c68924f2de4db1a`；toolchain `bc58da63333521f2cb7192c44fcfffcf61656616`；Lynx `025ed82319233c8b64e734cb4c6cdbca84da9833`；主仓库 `4df1e97b3a7874d08d1d74ce799baa9295b512b4`。均为该基线加本批未提交工作树，最终差异摘要见 `/tmp/songloft-bili-verification/worktrees.json`。
 
 环境：Linux amd64、Node 22.17.1、Docker Chromium 121、Android API 34 x86_64 模拟器。测试后端使用独立 SQLite 和插件目录（端口 30600），未修改现有服务实例。

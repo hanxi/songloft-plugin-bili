@@ -1,4 +1,5 @@
 .app {
+  position: relative;
   --content-muted: #707078;
   width: 100%;
   height: 100%;
@@ -336,6 +337,7 @@
   padding: 12px;
 }
 .video-main {
+  width: 0;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -375,15 +377,22 @@
   height: 54px;
 }
 .video-info {
+  width: 0;
+  overflow: hidden;
   flex: 1;
   min-width: 0;
 }
 .app .video-title {
+  width: 100%;
+  max-height: 42px;
+  word-break: break-all;
+  text-overflow: ellipsis;
   font-size: 14px;
   line-height: 21px;
   font-weight: 600;
 }
-.video-row > .button {
+.video-row .button {
+  width: 44px;
   flex-shrink: 0;
   padding: 8px 6px;
   margin: 0 0 0 4px;
@@ -391,14 +400,92 @@
   border: 0;
   background-color: transparent;
 }
-.app .video-row > .button text {
+
+.video-meta {
+  width: 100%;
+  text-overflow: ellipsis;
+}
+.picker-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  background-color: rgba(0, 0, 0, 0.35);
+}
+.picker-dialog {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 10%;
+  height: 80%;
+  padding: 16px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+.app.dark .picker-dialog {
+  background-color: #1c1c1e;
+}
+.picker-header,
+.picker-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+.app .picker-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.picker-header .button {
+  margin: 0;
+}
+.picker-list {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  margin-top: 12px;
+}
+.picker-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e5ea;
+}
+.app.dark .picker-option {
+  border-bottom-color: #38383a;
+}
+.app .picker-option-title {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  max-height: 44px;
+  word-break: break-all;
+}
+.app .picker-option-check {
+  width: 24px;
+  flex-shrink: 0;
+  color: #0088ff;
+  text-align: right;
+}
+.picker-footer {
+  justify-content: space-between;
+  padding-top: 8px;
+}
+.app .video-row .button text {
   color: #0071d4;
   font-size: 12px;
 }
-.app.dark .video-row > .button {
+.app.dark .video-row .button {
   background-color: transparent;
 }
-.app.dark .video-row > .button text {
+.app.dark .video-row .button text {
   color: #66b9ff;
 }
 .parts {

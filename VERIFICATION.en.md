@@ -1,5 +1,19 @@
 # Lynx migration verification (2026-11-15)
 
+## Main navigation, long titles, parts and playlist picking (2026-11-15)
+
+2026-11-16: commits/pushes are authorized. The pre-commit verification snapshot below is retained; code exactly matches `/tmp/bili-followup/worktrees.json`, with only authorization records added. Git/Actions determine actual commits, CI and existing push-triggered publication results.
+
+Object: bili `2317a4a8a3d0964571a52725b7bcd2fb3e2124d2` plus this worktree, alongside client `2447fade1affad9dda94f0bd68aff932680d91d8` plus native frame retention. The client Shell owns navigation retention; plugin server storage is not used to share UI state across devices. Updating the plugin alone does not fix frame destruction in older native clients.
+
+Linux / Node 22.17.1 / Docker Chromium 121, isolated backend on port 30602: all 59 tests, frontend/backend types, native/Web builds and validation pass. `tests/details.browser.cjs` checks a 42px/two-line mixed-language title at 320px clear of the button, one parts request across expand/collapse/reopen, and 1000 playlists rendering at most 20 rows with actual search for “999”, selection and cancellation. The old bundle fails because collapse is unavailable. Logs: `/tmp/bili-followup-{tests,types,backend-types,build,validate,browser,browser-negative}.log`. Existing stability and 30 layout combinations/short-viewport settings save pass: `/tmp/bili-followup-{stability,layout}.log`. Native default input values are stable, with imperative updates reserved for external changes rather than echoing every keystroke.
+
+All 3820 client tests, 89 release checks, types, dual and Web builds pass. Native-branch component checks retain the exact frame/search, pause hidden pages and dispose updated/disabled frames. An isolated retention mutation fails the regression. See client `docs/project/bili-plugin-interaction.md` and `/tmp/bili-followup-host-negative.log`. Initial client query-isolation fixtures and a redundant glass-surface fill were corrected without relaxing the surface gate.
+
+Real keyboard checks also exposed Web host bindings lost before custom-element upgrade; both development and production implementations of pinned web-core are patched. All three production-method checks pass; the old bundle fails two. HTML fallback requires refreshed server-side `web-core/` assets. After verifying the HTTP asset hash, the scenarios above pass with normal keyboard/pointer actions and no manual event injection or binding. Logs: `/tmp/bili-followup-{events,event-negative,browser}.log`; runtime identity is in the client record.
+
+Not run: Android native devices, Flutter, iOS/HarmonyOS, real Bili import/download. Web screenshots are not Android acceptance; previous emulators exited 139 when starting the host. No commit, push or release. Final two-repository fingerprints: `/tmp/bili-followup/worktrees.json`.
+
 Baselines: bili `290b9767f4e7416c0a7a2c077c68924f2de4db1a`, toolchain `bc58da63333521f2cb7192c44fcfffcf61656616`, Lynx `025ed82319233c8b64e734cb4c6cdbca84da9833`, parent `4df1e97b3a7874d08d1d74ce799baa9295b512b4`, plus this batch's uncommitted worktrees. Final diff identifiers: `/tmp/songloft-bili-verification/worktrees.json`.
 
 Environment: Linux amd64, Node 22.17.1, Docker Chromium 121, Android API 34 x86_64 emulator. An isolated SQLite database and plugin directory served port 30600; existing service data was not modified.

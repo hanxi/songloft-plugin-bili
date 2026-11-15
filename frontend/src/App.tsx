@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from '@lynx-js/react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from '@lynx-js/react'
 import {
   apiGet,
   apiPost,
@@ -10,6 +16,7 @@ import qrcode from 'qrcode-generator'
 import type { Settings } from '../../src/store'
 import type { BiliVideo } from '../../src/search'
 import { createReadCache, coverSource } from './requests'
+import { optionPage, type Option } from './options'
 import './style.css'
 
 type Data = Record<string, any>
@@ -40,11 +47,97 @@ function Button({
         if (!disabled) onTap()
       }}
     >
-      <text>{children}</text>
+      <text text-maxline="2" text-overflow="ellipsis">
+        {children}
+      </text>
     </view>
   )
 }
 let fieldId = 0
+type PickerRequest = {
+  label: string
+  value: string
+  options: Option[]
+  change: (value: string) => void
+}
+
+function OptionPicker({
+  request,
+  close,
+}: {
+  request: PickerRequest
+  close: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
+  const result = optionPage(request.options, query, page)
+  return (
+    <view className="picker-mask" bindtap={close}>
+      <view className="picker-dialog" catchtap={() => {}}>
+        <view className="picker-header">
+          <text className="picker-title">{request.label}</text>
+          <Button onTap={close}>取消</Button>
+        </view>
+        <Field
+          label="搜索名称"
+          value={query}
+          change={(value) => {
+            setQuery(value)
+            setPage(0)
+          }}
+        />
+        <text className="muted">共 {result.count} 项</text>
+        <scroll-view
+          className="picker-list"
+          scroll-y
+          key={query + ':' + result.page}
+        >
+          {result.items.map(([value, title]) => (
+            <view
+              className={
+                'picker-option' + (value === request.value ? ' selected' : '')
+              }
+              key={value}
+              bindtap={() => {
+                request.change(value)
+                close()
+              }}
+            >
+              <text
+                className="picker-option-title"
+                text-maxline="2"
+                text-overflow="ellipsis"
+              >
+                {title}
+              </text>
+              <text className="picker-option-check">
+                {value === request.value ? '✓' : ''}
+              </text>
+            </view>
+          ))}
+          {!result.count && <text className="muted">没有匹配项</text>}
+        </scroll-view>
+        <view className="picker-footer">
+          <Button
+            disabled={result.page === 0}
+            onTap={() => setPage(result.page - 1)}
+          >
+            上一页
+          </Button>
+          <text>
+            {result.page + 1} / {result.pages}
+          </text>
+          <Button
+            disabled={result.page + 1 === result.pages}
+            onTap={() => setPage(result.page + 1)}
+          >
+            下一页
+          </Button>
+        </view>
+      </view>
+    </view>
+  )
+}
 function Field({
   label,
   value,
@@ -57,7 +150,30 @@ function Field({
   secret?: boolean
 }) {
   const id = useRef('bili-field-' + ++fieldId)
+  const initialValue = useRef(value)
+  const nativeValue = useRef(value)
+  const emittedValues = useRef(new Set<string>())
+  const mounted = useRef(false)
+  const changeRef = useRef(change)
+  changeRef.current = change
+  const handleInput = useCallback((e: { detail: { value: string } }) => {
+    nativeValue.current = e.detail.value
+    emittedValues.current.add(e.detail.value)
+    changeRef.current(e.detail.value)
+  }, [])
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true
+      // Web's input does not always apply a nonempty default on re-entry.
+      // Empty new fields need no imperative echo that could race typing.
+      if (!value || emittedValues.current.size) return
+    } else if (nativeValue.current === value) {
+      emittedValues.current.clear()
+      return
+    }
+    if (emittedValues.current.has(value)) return
+    emittedValues.current.clear()
+    nativeValue.current = value
     lynx
       .createSelectorQuery()
       .select('#' + id.current)
@@ -72,9 +188,9 @@ function Field({
         id={id.current}
         maxlength={16384}
         type={secret ? 'password' : 'text'}
-        default-value={value}
+        default-value={initialValue.current}
         placeholder={label}
-        bindinput={(e) => change(e.detail.value)}
+        bindinput={handleInput}
       />
     </view>
   )
@@ -85,23 +201,24 @@ function Choice({
   options,
   change,
   compact = false,
+  openPicker,
 }: {
+  openPicker?: (request: PickerRequest) => void
   compact?: boolean
   label: string
   value: string
   options: [string, string][]
   change: (v: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
   return (
     <view className="field">
       <text>{label}</text>
       {compact && (
-        <Button onTap={() => setExpanded(!expanded)}>
+        <Button onTap={() => openPicker?.({ label, value, options, change })}>
           {options.find(([v]) => v === value)?.[1] || '选择歌单'} ▾
         </Button>
       )}
-      {(!compact || expanded) && (
+      {!compact && (
         <view className="row">
           {Array.from(new Map(options).entries()).map(([v, title]) => (
             <Button
@@ -109,7 +226,6 @@ function Choice({
               selected={value === v}
               onTap={() => {
                 change(v)
-                setExpanded(false)
               }}
             >
               {title}
@@ -255,6 +371,8 @@ function Cover({ source }: { source: string }) {
   )
 }
 export function App() {
+  const [picker, setPicker] = useState<PickerRequest | null>(null)
+  const [visible, setVisible] = useState(true)
   const [theme, setTheme] = useState(getTheme()),
     [tab, setTab] = useState('搜索')
   const [visited, setVisited] = useState<Record<string, boolean>>({
@@ -283,6 +401,7 @@ export function App() {
   const [videos, setVideos] = useState<BiliVideo[]>([]),
     [more, setMore] = useState(false)
   const [parts, setParts] = useState<Record<string, BiliVideo[]>>({}),
+    [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({}),
     [selected, setSelected] = useState<Record<string, BiliVideo>>({})
   const [playlists, setPlaylists] = useState<Data[]>([]),
     [playlist, setPlaylist] = useState(''),
@@ -449,13 +568,20 @@ export function App() {
     let active = true,
       timer: ReturnType<typeof setTimeout> | undefined
     async function refresh() {
-      if (active && (tab === '下载' || tab === '设置'))
+      if (active && visible && (tab === '下载' || tab === '设置'))
         await loadResource(tab === '下载' ? '下载' : '同步状态')
-      if (active && (tab === '下载' || tab === '设置'))
+      if (active && visible && (tab === '下载' || tab === '设置'))
         timer = setTimeout(refresh, 2000)
     }
     void refresh()
     const off = onPush((event, data) => {
+      if (event === 'lifecycle') {
+        const state = (
+          typeof data === 'string' ? JSON.parse(data) : (data as Data)
+        )?.state
+        if (state === 'paused') setVisible(false)
+        if (state === 'resumed') setVisible(true)
+      }
       if (
         event === 'lifecycle' &&
         (typeof data === 'string' ? JSON.parse(data) : (data as Data))
@@ -469,9 +595,9 @@ export function App() {
       clearTimeout(timer)
       off()
     }
-  }, [tab])
+  }, [tab, visible])
   useEffect(() => {
-    if (!qr) return
+    if (!qr || !visible) return
     let active = true,
       timer: ReturnType<typeof setTimeout> | undefined
     async function poll() {
@@ -504,7 +630,7 @@ export function App() {
       active = false
       clearTimeout(timer)
     }
-  }, [qr])
+  }, [qr, visible])
   function changeTab(next: string) {
     if (next === tabRef.current) return
     tabRef.current = next
@@ -528,6 +654,7 @@ export function App() {
     setMore(!extract && items.length >= 20)
     if (nextPage === 1) {
       setParts({})
+      setExpandedParts({})
       setSelected(
         extract ? Object.fromEntries(items.map((v) => [key(v), v])) : {},
       )
@@ -600,10 +727,18 @@ export function App() {
             )}
             <Cover source={v.cover} />
             <view className="video-info">
-              <text className="video-title" text-maxline="2">
+              <text
+                className="video-title"
+                text-maxline="2"
+                text-overflow="ellipsis"
+              >
                 {v.title}
               </text>
-              <text className="muted">
+              <text
+                className="muted video-meta"
+                text-maxline="1"
+                text-overflow="ellipsis"
+              >
                 {v.author} · {Math.floor(v.duration / 60)}:
                 {String(v.duration % 60).padStart(2, '0')}
                 {v.page ? ' · P' + v.page : ''}
@@ -613,7 +748,14 @@ export function App() {
           {selectable && !v.cid && (
             <Button
               disabled={busy}
-              onTap={() =>
+              onTap={() => {
+                if (parts[v.bvid]) {
+                  setExpandedParts((old) => ({
+                    ...old,
+                    [v.bvid]: !old[v.bvid],
+                  }))
+                  return
+                }
                 void run(async () => {
                   const epoch = searchEpoch.current
                   const r = await apiGet<Data>(
@@ -627,6 +769,7 @@ export function App() {
                     }),
                   )
                   setParts((old) => ({ ...old, [v.bvid]: items }))
+                  setExpandedParts((old) => ({ ...old, [v.bvid]: true }))
                   setSelected((old) => {
                     const copy = { ...old }
                     if (copy[key(v)]) {
@@ -636,13 +779,13 @@ export function App() {
                     return copy
                   })
                 })
-              }
+              }}
             >
-              分 P
+              {expandedParts[v.bvid] ? '收起' : '分 P'}
             </Button>
           )}
         </view>
-        {parts[v.bvid] && !v.cid && (
+        {parts[v.bvid] && expandedParts[v.bvid] && !v.cid && (
           <view className="parts">{videoRows(parts[v.bvid])}</view>
         )}
       </view>
@@ -761,6 +904,7 @@ export function App() {
                         >
                           <Choice
                             compact
+                            openPicker={setPicker}
                             label="导入目标歌单"
                             value={playlist}
                             options={[
@@ -1149,6 +1293,8 @@ export function App() {
                         />
                         {account.logged_in ? (
                           <Choice
+                            compact
+                            openPicker={setPicker}
                             label="监控收藏夹"
                             value={String(settings.watch_favorite_id)}
                             options={[
@@ -1184,6 +1330,8 @@ export function App() {
                           </view>
                         )}
                         <Choice
+                          compact
+                          openPicker={setPicker}
                           label="监控目标歌单"
                           value={String(settings.watch_playlist_id)}
                           options={[
@@ -1312,6 +1460,9 @@ export function App() {
             </view>
           ))}
       </view>
+      {picker && (
+        <OptionPicker request={picker} close={() => setPicker(null)} />
+      )}
     </view>
   )
 }

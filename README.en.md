@@ -12,6 +12,12 @@ Node.js ≥22.14 is required; the Web build uses a WebAssembly tool unsupported 
 
 Music search is the default. “Import via link” switches to video, collection or favorite-folder extraction while preserving both inputs. Results show covers, durations and part selection. Selecting tracks reveals the playlist and import actions; artist overrides, download directories and new playlists remain available.
 
+Long titles clamp to two lines with ellipsis. Parts can expand/collapse and reuse loaded data on reopening. Import playlists, monitored folders and target playlists use searchable pickers with at most 20 items per page; cancelling preserves the current choice.
+
+Native Lynx library/plugin main-navigation retention requires the client frame-retention fix. Updating the plugin alone cannot prevent an older client from destroying its page. Compatible clients pause hidden UI polling and refresh on return. Retention is limited to the current navigation-shell session, without persistence guarantees across app restart or the full-player route.
+
+The HTML fallback input-event fix also requires refreshed server-side `web-core/` assets distributed with the Lynx Web build; replacing the plugin package alone does not update that runtime.
+
 All five tabs retain independent scroll containers and switch immediately with independent data updates. Search results, selection, settings drafts and per-tab scroll positions survive navigation. Refresh/error status has a fixed layout footprint and never shifts the form; tapping a failed status retries the read. Background downloads do not block navigation. Anonymous visitors do not request favorites; the monitoring section offers login guidance while other settings remain usable. Light and dark appearances use the main application's system blue and grouped lists.
 
 When direct cover loading fails, plugin `POST /api/cover` (`{url}` → `{src}`) retrieves the image through the existing host resource proxy. It accepts only HTTPS `*.hdslb.com/bfs/` image URLs, restricts image types and size to 2 MiB, and returns an image data URL without exposing the host token. Failures retain a placeholder without blocking results. A bounded frontend cache avoids repeated fallback requests when changing tabs.
