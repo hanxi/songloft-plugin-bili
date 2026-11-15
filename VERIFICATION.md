@@ -36,3 +36,7 @@ Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制
 `git diff --check` 通过。actionlint v1.7.12 尚不识别 GitHub 已支持的 `concurrency.queue`，初次检查因此失败；按[官方文档](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)核对 `queue: max` 与 `cancel-in-progress: false`，仅忽略此项旧版 schema 报错后，两份工作流其余检查通过。日志 `/tmp/songloft-bili-auto-release-lint.log`。推送后的同 SHA CI、自动 Release 和下载资产另行验收。
 
 Not run：本轮未重复浏览器/Android UI 操作，仅改发布流程，之前运行时验证记录保留。
+
+实际推送验收：提交 `7670f08e1f9391d896066ea7fd54f8bd6dd1259e` 的 [CI](https://github.com/hanxi/songloft-plugin-bili/actions/runs/43698667904) 与 [Release Plugin](https://github.com/hanxi/songloft-plugin-bili/actions/runs/43698667865) 全部成功。普通 push 自动创建 [v2026.11.15.0](https://github.com/hanxi/songloft-plugin-bili/releases/tag/v2026.11.15.0)，机器人提交 `692be3e` 回写主线元数据。本地已快进同步。
+
+下载 `/tmp/songloft-bili-auto-release-assets/bili.jsplugin.zip` 后，核对原生/Web bundle、HTML 回退入口与 `main.jsc`，并重算 entryHash、canonical zipHash；包内清单、tag 和主线的版本、来源、地址与哈希一致。tag 父提交正是 `7670f08`；ZIP SHA-256 为 `a984bf629271c4129d22c5f570b80cd0ac76fce5495f0df88eb427d2bb3efdf5`。本地旧 tag `v2026.10.7` 与远端冲突导致全 tag fetch 拒绝该旧引用，未强制覆盖；新 tag 已获取，主线快进成功，不影响本轮发布。
