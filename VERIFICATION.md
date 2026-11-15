@@ -24,3 +24,5 @@ Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制
 正式依赖下：后端及前端类型检查、38 项回归、原生/Web bundle 构建及 ZIP 校验通过，zipHash 仍为 `ef854906e246ae1ef811f28884016275b3699137736b7068c120e06f5d3650a3`。浏览器再次验证设置持久化、390px 暗色主题及文字颜色，pageerror 为 0。新增 CI 从独立 checkout 执行冻结安装、类型检查、回归和双包构建。日志 `/tmp/songloft-bili-official-*.log`；正式依赖复验中的浏览器首轮点击早于初始化完成而超时，等待页面初始化完成后通过。
 
 本轮 Android 复验中，模拟器宿主在启动及打开插件后以 segmentation fault（退出码 139）退出，未取得新的交互截图。未将本轮记为通过；保留前轮真实模拟器保存设置的证据，以及相同 zipHash 的产物关联。
+
+独立 CI 首轮因工作流显式 pnpm 9 与 packageManager 的 9.15.0 重复声明而失败；已统一由项目 packageManager 决定版本，保留 `/tmp/songloft-bili-first-ci-failure.log`，最终 CI 结果以提交对应运行记录为准。
