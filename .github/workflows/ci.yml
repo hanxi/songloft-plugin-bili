@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install backend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+      - name: Check types and backend regressions
+        run: |
+          pnpm exec tsc --noEmit
+          npm --prefix frontend run typecheck
+          pnpm test
+      - name: Build and validate native and Web bundles
+        run: |
+          pnpm run build
+          pnpm run validate
+          unzip -l dist/bili.jsplugin.zip | grep 'static/main.lynx.bundle'
+          unzip -l dist/bili.jsplugin.zip | grep 'static/main.web.bundle'

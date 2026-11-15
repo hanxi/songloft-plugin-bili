@@ -1,0 +1,103 @@
+.app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #fff8fa;
+  color: #242127;
+}
+.app.dark {
+  background-color: #19171b;
+  color: #f9edf2;
+}
+.row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.tabs {
+  flex-shrink: 0;
+  padding: 6px;
+}
+.button {
+  padding: 10px 14px;
+  margin: 4px;
+  border-radius: 12px;
+  background-color: #fb7299;
+}
+.button text {
+  color: #241019;
+  font-size: 14px;
+}
+.disabled {
+  opacity: 0.45;
+}
+.notice {
+  padding: 8px 16px;
+  color: #bc3862;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.body {
+  height: 100%;
+  flex: 1;
+}
+.content {
+  padding: 12px 16px;
+}
+.card {
+  padding: 14px;
+  margin-top: 8px;
+  border: 1px solid #bca3ad;
+  border-radius: 12px;
+}
+.field {
+  margin-top: 14px;
+}
+text {
+  font-size: 15px;
+}
+.muted {
+  color: #89717c;
+  font-size: 13px;
+  margin-top: 6px;
+}
+input {
+  height: 46px;
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  border: 1px solid #bca3ad;
+  border-radius: 8px;
+  color: #242127;
+  background-color: #fff;
+  font-size: 16px;
+}
+.qr {
+  padding: 16px;
+  background-color: #fff;
+  align-self: center;
+  margin: 12px;
+}
+.app text {
+  color: #242127;
+}
+.app.dark text {
+  color: #f9edf2;
+}
+.app .button text {
+  color: #241019;
+}
+.app .muted {
+  color: #89717c;
+}
+.app.dark .muted {
+  color: #baa3ad;
+}
+.app .notice {
+  color: #bc3862;
+}
+.app.dark .notice {
+  color: #ff97b6;
+}
