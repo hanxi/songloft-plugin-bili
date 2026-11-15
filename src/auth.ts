@@ -9,7 +9,7 @@ import type { RouteHandler } from '@songloft/plugin-sdk';
 import { UA, REFERER, API_BASE, PASSPORT_BASE } from './consts';
 import { biliGet } from './client';
 import { biliRequestJSON } from './request-control';
-import { getCookieMap, getCookieString, mergeCookies, setCookieFromString, clearCookie } from './store';
+import { getCookieMap, mergeCookies, setCookieFromString, clearCookie } from './store';
 
 const LOGIN_COOKIE_NAMES = ['SESSDATA', 'bili_jct', 'DedeUserID', 'DedeUserID__ckMd5', 'sid'];
 
@@ -118,8 +118,10 @@ export const cookieLoginHandler: RouteHandler = async (req) => {
 
 // GET /api/login/status
 export const statusHandler: RouteHandler = async () => {
-  const cookie = await getCookieString();
-  if (!cookie) return jsonResponse({ logged_in: false });
+  const cookies = await getCookieMap();
+  // Search fingerprints (buvid*) are not login credentials. Avoid probing nav
+  // for anonymous visitors, especially while Bili is rate limiting requests.
+  if (!cookies.SESSDATA) return jsonResponse({ logged_in: false });
   try {
     const j = await biliGet('/x/web-interface/nav', {}, { allowNonZero: true });
     const d = j.data || {};

@@ -33,6 +33,12 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
           contentType: 'application/javascript',
           body: fs.readFileSync(process.env.BILI_TEST_OLD_BUNDLE),
         })
+      if (path.endsWith('/api/login/status'))
+        return request.respond({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ logged_in: true, uname: '测试账号' }),
+        })
       if (path.endsWith('/api/favorites')) {
         favoritesCalls++
         await new Promise((r) => setTimeout(r, 1600))
@@ -85,9 +91,9 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
     const click = async (text) => {
       await page.evaluate((text) => {
         const r = document.getElementById('plugin-view').shadowRoot
-        const el = [...r.querySelectorAll('x-text')].find(
-          (e) => e.textContent.trim() === text,
-        )
+        const el = [
+          ...r.querySelectorAll('.tabs x-text, .body.active x-text'),
+        ].find((e) => e.textContent.trim() === text)
         if (!el) throw Error('missing ' + text)
         ;(el.closest('.button') || el).click()
       }, text)
@@ -102,7 +108,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
     await page.waitForFunction(() =>
       document
         .getElementById('plugin-view')
-        ?.shadowRoot?.querySelector('.text-input'),
+        ?.shadowRoot?.querySelector('.body.active .text-input'),
     )
     if (!process.env.BILI_TEST_OLD_BUNDLE)
       assert.equal(
@@ -110,7 +116,8 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
           () =>
             document
               .getElementById('plugin-view')
-              .shadowRoot.querySelector('.field-label').textContent,
+              .shadowRoot.querySelector('.body.active .field-label')
+              .textContent,
         ),
         '搜索关键词',
       )
@@ -139,30 +146,72 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
       'duplicate pending favorites reads must be deduplicated',
     )
     await click('搜索')
-    await page.evaluate(() => {
-      const r = document.getElementById('plugin-view').shadowRoot
-      const i = r.querySelector('.text-input').shadowRoot.querySelector('input')
-      i.value = '钢琴'
-      i.dispatchEvent(new Event('input', { bubbles: true, composed: true }))
-    })
+    const input = await page.evaluateHandle(() =>
+      document
+        .getElementById('plugin-view')
+        .shadowRoot.querySelector('.body.active .text-input')
+        .shadowRoot.querySelector('input'),
+    )
+    await input.asElement().click()
+    await page.keyboard.type('piano')
+    await page
+      .waitForFunction(
+        () =>
+          !document
+            .getElementById('plugin-view')
+            .shadowRoot.querySelector('.body.active .section .button-primary')
+            .classList.contains('disabled'),
+      )
+      .catch(async (e) => {
+        console.log(
+          await page.evaluate(() => {
+            const root = document.getElementById('plugin-view').shadowRoot
+            return {
+              value: root
+                .querySelector('.body.active .text-input')
+                .shadowRoot.querySelector('input').value,
+              buttons: [...root.querySelectorAll('.body.active .button')].map(
+                (el) => ({ text: el.textContent, cls: el.className }),
+              ),
+              active: document.activeElement?.outerHTML.slice(0, 120),
+            }
+          }),
+        )
+        await page.screenshot({ path: '/tmp/bili-stability-input-debug.png' })
+        throw e
+      })
     await click('搜索') // first match is tab, submit explicitly below
     await page.evaluate(() =>
       document
         .getElementById('plugin-view')
-        .shadowRoot.querySelector('.section .button-primary')
+        .shadowRoot.querySelector('.body.active .section .button-primary')
         .click(),
     )
-    await page.waitForFunction(
-      () =>
-        document
-          .getElementById('plugin-view')
-          .shadowRoot.querySelectorAll('.video-item').length === 3,
-    )
+    await page
+      .waitForFunction(
+        () =>
+          document
+            .getElementById('plugin-view')
+            .shadowRoot.querySelectorAll('.body.active .video-item').length ===
+          3,
+      )
+      .catch(async (e) => {
+        console.log(
+          await page.evaluate(
+            () =>
+              document
+                .getElementById('plugin-view')
+                .shadowRoot.querySelector('.status-slot')?.textContent,
+          ),
+        )
+        await page.screenshot({ path: '/tmp/bili-stability-search-debug.png' })
+        throw e
+      })
     await page
       .waitForFunction(
         () => {
           const r = document.getElementById('plugin-view').shadowRoot
-          const image = r.querySelector('.cover-image')
+          const image = r.querySelector('.body.active .cover-image')
           return image?.shadowRoot?.querySelector('img')?.naturalWidth > 0
         },
         { timeout: 20000 },
@@ -176,7 +225,8 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
                 .shadowRoot.querySelectorAll('.cover'),
             ].map((e) => ({
               html: e.outerHTML,
-              shadow: e.querySelector('.cover-image')?.shadowRoot?.innerHTML,
+              shadow: e.querySelector('.body.active .cover-image')?.shadowRoot
+                ?.innerHTML,
             })),
           ),
         )
@@ -187,12 +237,13 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
       () =>
         document
           .getElementById('plugin-view')
-          .shadowRoot.querySelectorAll('.cover-image').length === 1,
+          .shadowRoot.querySelectorAll('.body.active .cover-image').length ===
+        1,
     )
     await page.evaluate(() =>
       document
         .getElementById('plugin-view')
-        .shadowRoot.querySelector('.video-main')
+        .shadowRoot.querySelector('.body.active .video-main')
         .click(),
     )
     await click('设置')
@@ -203,7 +254,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
       await page.evaluate(() =>
         document
           .getElementById('plugin-view')
-          .shadowRoot.querySelector('.selection')
+          .shadowRoot.querySelector('.body.active .selection')
           .classList.contains('is-selected'),
       ),
       'selection survives navigation',
@@ -223,7 +274,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
             ...document
               .getElementById('plugin-view')
               .shadowRoot.querySelectorAll(
-                '.video-row,.section,.button,.cover',
+                '.body.active .video-row,.body.active .section,.body.active .button,.body.active .cover',
               ),
           ].some((e) => {
             const r = e.getBoundingClientRect()
@@ -242,7 +293,7 @@ const base = process.env.BILI_TEST_BASE_URL || 'http://127.0.0.1:30602'
         [
           ...document
             .getElementById('plugin-view')
-            .shadowRoot.querySelectorAll('.button.selected'),
+            .shadowRoot.querySelectorAll('.body.active .button.selected'),
         ].some((e) => e.textContent === '中'),
       ),
       'refresh must preserve settings draft',

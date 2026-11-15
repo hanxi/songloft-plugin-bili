@@ -50,9 +50,9 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
     const click = async (label) => {
       const rect = await page.evaluate((label) => {
         const root = document.getElementById('plugin-view').shadowRoot
-        const text = [...root.querySelectorAll('x-text')].find(
-          (e) => e.textContent.trim() === label,
-        )
+        const text = [
+          ...root.querySelectorAll('.tabs x-text, .body.active x-text'),
+        ].find((e) => e.textContent.trim() === label)
         if (!text) throw new Error('Missing control: ' + label)
         const el = text.closest('.button') || text
         el.scrollIntoView({ block: 'center' })
@@ -61,6 +61,16 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
       }, label)
       await page.mouse.click(rect.x, rect.y)
       await new Promise((resolve) => setTimeout(resolve, 150))
+      if (['搜索', '收藏夹', '下载', '账号', '设置'].includes(label))
+        await page.waitForFunction(
+          (label) =>
+            document
+              .getElementById('plugin-view')
+              .shadowRoot.querySelector('.button-tab.selected')?.textContent ===
+            label,
+          {},
+          label,
+        )
       await page.waitForFunction(
         () =>
           !document
@@ -77,7 +87,7 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
         })
         const overflow = [
           ...root.querySelectorAll(
-            '.section, .field, .button, .text-input, .toggle-row',
+            '.body.active .section, .body.active .field, .body.active .button, .body.active .text-input, .body.active .toggle-row',
           ),
         ]
           .map((el) => ({
@@ -128,7 +138,7 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
             [
               ...document
                 .getElementById('plugin-view')
-                .shadowRoot.querySelectorAll('.text-input'),
+                .shadowRoot.querySelectorAll('.body.active .text-input'),
             ].map(
               (el) =>
                 (
@@ -141,7 +151,15 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
             `${tab} inputs must have usable height at ${width}: ${JSON.stringify(inputs)}`,
           )
           if (tab === '搜索' || tab === '账号')
-            assert.ok(inputs.length > 0, 'Form fields must exist')
+            assert.ok(
+              inputs.length > 0,
+              'Form fields must exist for ' +
+                tab +
+                ' at ' +
+                width +
+                ' selected=' +
+                JSON.stringify(result.tabs),
+            )
           const selected = await page.evaluate(
             () =>
               document
@@ -177,8 +195,9 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
     const atTop = await page.evaluate(() => {
       const root = document.getElementById('plugin-view').shadowRoot
       return (
-        root.querySelector('.content').getBoundingClientRect().top >=
-        root.querySelector('.body').getBoundingClientRect().top - 1
+        root.querySelector('.body.active .content').getBoundingClientRect()
+          .top >=
+        root.querySelector('.body.active').getBoundingClientRect().top - 1
       )
     })
     assert.ok(atTop, 'Changing tabs must reset the scroll position')
@@ -187,7 +206,7 @@ const output = process.env.BILI_TEST_OUTPUT || '/tmp/bili-layout'
         [
           ...document
             .getElementById('plugin-view')
-            .shadowRoot.querySelectorAll('.section-title'),
+            .shadowRoot.querySelectorAll('.body.active .section-title'),
         ].filter((e) => e.textContent === '导入选中的歌曲').length,
     )
     assert.equal(

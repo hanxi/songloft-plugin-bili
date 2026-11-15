@@ -480,3 +480,15 @@ test('冷却状态写入失败时仍阻止本次运行的后续请求', async (t
   await assert.rejects(api.biliGet('/read-error'), /risk_control/);
   assert.equal(fetches.length, 1);
 });
+
+test('游客指纹 Cookie 不触发登录检查，也不暴露 nav 风控错误', async (t) => {
+  const {request, fetches} = fixture(t, {
+    storage: new Map([['cookie', {buvid3: 'anonymous-fingerprint'}]]),
+    fetchResponse: () => response('<html>blocked</html>', 412),
+  });
+  const result = await request('/api/login/status', {}, 'GET');
+  assert.equal(result.status, 200);
+  assert.equal(result.body.logged_in, false);
+  assert.equal(result.body.error, undefined);
+  assert.equal(fetches.length, 0);
+});

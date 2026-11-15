@@ -5,6 +5,7 @@
   display: flex;
   flex-direction: column;
   background-color: #f2f2f7;
+  overflow: hidden;
 }
 .app text {
   color: #151518;
@@ -91,8 +92,7 @@
 }
 .body {
   height: 100%;
-  flex: 1;
-  min-height: 0;
+  width: 100%;
 }
 .content {
   width: 100%;
@@ -456,4 +456,39 @@
   color: #ffffff;
   font-size: 12px;
   line-height: 16px;
+}
+
+/* Async status never participates in the form's layout. Keep its footprint
+   identical across pages, including polling and failed background reads. */
+.status-slot {
+  height: 40px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  justify-content: center;
+}
+.app .status-text {
+  color: #0071d4;
+  font-size: 12px;
+  line-height: 20px;
+}
+.app.dark .status-text {
+  color: #66b9ff;
+}
+
+/* A single layout slot owns all retained pages. Visibility changes never
+   recalculate the flex weights of navigation, status or sibling pages. */
+.page-stack {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+.tab-page {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
 }

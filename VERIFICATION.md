@@ -71,3 +71,18 @@ Not run：本轮未重新构建 Android 原生壳，未操作真实 B 站账号/
 - 既有 `tests/layout.browser.cjs` 验证 30 组导航/布局/输入高度、320×480 下真实保存并后端读回 medium、无 pageerror；日志 `/tmp/bili-redesign-layout.log`。`git diff --check` 通过。最终文件 SHA-256 表在 `/tmp/bili-redesign/worktree.json`。
 
 Not run：ReactLynx 原生真机/模拟器（当前 adb 无连接设备）、Flutter 真机、iOS/HarmonyOS；真实 B 站账号扫码、收藏夹导入和音频下载。原生 bundle 构建通过不替代这些验证。没有提交、推送或发布。
+
+## 设置页抖动及游客错误修复（2026-11-15）
+
+基线 bili `168d83c1e651be1ac3132583bdf3cdbd5600ef7e` 加本批工作树；Linux amd64、Node 22.17.1、Docker Chromium 121，隔离后端 `/tmp/bili-stability/test.db`，端口 30602。宿主沿用之前构建的 server-final2，本批只修改插件。
+
+根因与改动：同步状态每两秒轮询时，资源提示反复插入/删除表单顶部；切页还会重建 scroll-view。改为固定导航、固定高度状态区域、单个页面容器及按需创建后保留的独立滚动页，页面显隐由普通 view 控制，滚动页使用 100% 高度，避免 Web scroll-view 强制 display:flex 及隐藏恢复后的 flex 权重丢失。请求刷新不再改变表单布局。匿名状态不读取受保护的收藏夹；收藏夹 401 转为登录引导并清理失效列表，登录后恢复读取；其他设置不要求登录。只有 buvid 指纹、没有 SESSDATA 时，登录状态接口直接返回游客状态，不再访问 nav。
+
+- 原包回归捕获首个设置标题位移 82px、收藏夹请求 3 次及原始错误文字；日志 `/tmp/bili-stability-negative.log`。新匿名 Cookie 回归在基线隔离副本中因返回 `risk_control: B站 HTTP 412` 失败，日志 `/tmp/bili-stability-auth-negative.log`。
+- `tests/stability.browser.cjs` 对同步状态注入 500ms 延迟及每三次一次的 500 错误，连续采样约 9 秒；新实现标题、滚动区域与导航尺寸位移均 0px。匿名收藏夹请求 0 次；登录失效场景只请求 1 次，之后不重试受保护列表。原页面节点与 240px 滚动位置保留，只有当前页占用显示空间，无 pageerror。日志 `/tmp/bili-stability-{browser,expired}.log`。
+- `tests/layout.browser.cjs` 的 30 组尺寸/主题/五页检查、短视口真实保存及后端读回通过；持久页面使隐藏控件仍存在，测试已限定到 active 页并确认实际选中页签。慢请求切页、草稿保留与真实图片的 interaction 回归通过。日志 `/tmp/bili-stability-{layout,interaction}.log`。
+- 56 项测试、前后端类型检查、原生/Web 双包构建、validate、格式检查及 diff 检查通过，日志 `/tmp/bili-stability-{tests,backend-types,build,validate,format}.log`。初次结构试验发现 Web 隐藏后滚动容器高度为零，新增显示空间断言捕获；最终以独立页面容器和百分比滚动高度修复后通过，未把中间布局测试失败改写为成功。
+
+Android 复验尝试失败：宿主用户无 KVM 权限；随后在隔离 Docker 内挂载 KVM，模拟器 37.2/API34、35.6/API34 的 SwiftShader 与 GPU off 尝试均能启动系统，但在既有 Debug 宿主加载时以 139 退出，未进入插件页。日志 `/tmp/bili-stability-emulator.log`、`/tmp/bili-stability-android*.log`。Not run：本批插件在 Android 原生界面的交互/截图验收、Flutter/iOS/HarmonyOS、真实 B 站账号导入下载。原生 bundle 编译通过不替代这些检查。未提交或推送。
+
+最终文件指纹表：`/tmp/bili-stability/worktree.json`；截图保存在测试 Chrome 容器 `/tmp/bili-stability-settings.png`。
