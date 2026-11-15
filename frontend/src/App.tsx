@@ -18,14 +18,23 @@ function Button({
   children,
   onTap,
   disabled = false,
+  selected = false,
+  variant = 'secondary',
 }: {
   children: ReactNode
   onTap: () => void
   disabled?: boolean
+  selected?: boolean
+  variant?: 'secondary' | 'primary' | 'tab'
 }) {
   return (
     <view
-      className={'button' + (disabled ? ' disabled' : '')}
+      className={
+        'button button-' +
+        variant +
+        (selected ? ' selected' : '') +
+        (disabled ? ' disabled' : '')
+      }
       bindtap={() => {
         if (!disabled) onTap()
       }}
@@ -56,8 +65,9 @@ function Field({
   }, [value])
   return (
     <view className="field">
-      <text>{label}</text>
+      <text className="field-label">{label}</text>
       <input
+        className="text-input"
         id={id.current}
         maxlength={16384}
         type={secret ? 'password' : 'text'}
@@ -83,13 +93,50 @@ function Choice({
     <view className="field">
       <text>{label}</text>
       <view className="row">
-        {options.map(([v, title], index) => (
-          <Button key={v + index} onTap={() => change(v)}>
-            {value === v ? '● ' : '○ '}
+        {Array.from(new Map(options).entries()).map(([v, title]) => (
+          <Button key={v} selected={value === v} onTap={() => change(v)}>
             {title}
           </Button>
         ))}
       </view>
+    </view>
+  )
+}
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <view className="section">
+      <text className="section-title">{title}</text>
+      {description && (
+        <text className="muted section-description">{description}</text>
+      )}
+      {children}
+    </view>
+  )
+}
+function Toggle({
+  label,
+  value,
+  change,
+}: {
+  label: string
+  value: boolean
+  change: (value: boolean) => void
+}) {
+  return (
+    <view className="toggle-row" bindtap={() => change(!value)}>
+      <text className="toggle-label">{label}</text>
+      <view className={'toggle-track' + (value ? ' selected' : '')}>
+        <view className="toggle-thumb" />
+      </view>
+      <text className="toggle-state">{value ? '开启' : '关闭'}</text>
     </view>
   )
 }
@@ -128,6 +175,7 @@ export function App() {
   const busyRef = useRef(false),
     alive = useRef(true),
     searchEpoch = useRef(0)
+  const [mode, setMode] = useState<'url' | 'search'>('url')
   const [query, setQuery] = useState(''),
     [url, setUrl] = useState(''),
     [page, setPage] = useState(1)
@@ -380,79 +428,152 @@ export function App() {
   function set<K extends keyof Settings>(name: K, value: Settings[K]) {
     setSettings((old) => (old ? { ...old, [name]: value } : old))
   }
-  const action = (label: string, fn: () => Promise<void>, disabled = false) => (
-    <Button disabled={busy || disabled} onTap={() => void run(fn)}>
+  const action = (
+    label: string,
+    fn: () => Promise<void>,
+    disabled = false,
+    primary = false,
+  ) => (
+    <Button
+      variant={primary ? 'primary' : 'secondary'}
+      disabled={busy || disabled}
+      onTap={() => void run(fn)}
+    >
       {label}
     </Button>
   )
   return (
     <view className={'app ' + theme}>
-      <view className="row tabs">
+      <view className="tabs">
         {tabs.map((t) => (
-          <Button key={t} disabled={busy} onTap={() => void changeTab(t)}>
-            {tab === t ? '● ' : ''}
+          <Button
+            key={t}
+            variant="tab"
+            selected={tab === t}
+            disabled={busy}
+            onTap={() => void changeTab(t)}
+          >
             {t}
           </Button>
         ))}
       </view>
-      <text className="notice">{message}</text>
-      <scroll-view scroll-y className="body">
+      {message && message !== '操作完成' && (
+        <text className="notice">{message}</text>
+      )}
+      <scroll-view key={tab} scroll-y className="body">
         <view className="content">
           {tab === '搜索' && (
             <>
-              <Field label="搜索关键词" value={query} change={setQuery} />
-              {action('搜索', () => search(1), !query.trim())}
-              <Field
-                label="视频 / 合集 / 收藏夹链接"
-                value={url}
-                change={setUrl}
-              />
-              {action('解析链接', () => search(1, true), !url.trim())}
+              <Section
+                title="导入歌曲"
+                description="粘贴 B 站链接，或搜索想听的音乐。"
+              >
+                <view className="row mode-tabs">
+                  <Button
+                    selected={mode === 'url'}
+                    onTap={() => setMode('url')}
+                  >
+                    链接导入
+                  </Button>
+                  <Button
+                    selected={mode === 'search'}
+                    onTap={() => setMode('search')}
+                  >
+                    搜索音乐
+                  </Button>
+                </view>
+                {mode === 'url' ? (
+                  <>
+                    <Field
+                      label="视频 / 合集 / 收藏夹链接"
+                      value={url}
+                      change={setUrl}
+                    />
+                    {action(
+                      '提取歌曲',
+                      () => search(1, true),
+                      !url.trim(),
+                      true,
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Field label="搜索关键词" value={query} change={setQuery} />
+                    {action('搜索', () => search(1), !query.trim(), true)}
+                  </>
+                )}
+              </Section>
               {videoRows(videos)}
               {more && action('加载更多', () => search(page + 1))}
-              <Choice
-                label="导入目标歌单"
-                value={playlist}
-                options={[
-                  ['', '不加入歌单'],
-                  ...playlists.map(
-                    (p) => [String(p.id), p.name] as [string, string],
-                  ),
-                  ['__new__', '新建歌单'],
-                ]}
-                change={(v) => {
-                  setPlaylist(v)
-                  void run(async () => {
-                    await apiPost('/api/import-prefs', { last_playlist: v })
-                  })
-                }}
-              />
-              {playlist === '__new__' && (
-                <Field
-                  label="新歌单名"
-                  value={playlistName}
-                  change={setPlaylistName}
-                />
+              {Object.keys(selected).length > 0 && (
+                <Section title="导入选中的歌曲">
+                  <Choice
+                    label="导入目标歌单"
+                    value={playlist}
+                    options={[
+                      ['', '不加入歌单'],
+                      ...playlists.map(
+                        (p) => [String(p.id), p.name] as [string, string],
+                      ),
+                      ['__new__', '新建歌单'],
+                    ]}
+                    change={(v) => {
+                      setPlaylist(v)
+                      void run(async () => {
+                        await apiPost('/api/import-prefs', { last_playlist: v })
+                      })
+                    }}
+                  />
+                  {playlist === '__new__' && (
+                    <Field
+                      label="新歌单名"
+                      value={playlistName}
+                      change={setPlaylistName}
+                    />
+                  )}
+                  <Field
+                    label="艺术家覆盖（可选）"
+                    value={artist}
+                    change={setArtist}
+                  />
+                  <Field
+                    label="下载保存目录（可选）"
+                    value={directory}
+                    change={setDirectory}
+                  />
+                  <text>已选择 {Object.keys(selected).length} 首</text>
+                  <view className="row">
+                    {action('仅导入', () => importItems(false))}
+                    {action('导入并下载', () => importItems(true), false, true)}
+                  </view>
+                </Section>
               )}
-              <Field
-                label="艺术家覆盖（可选）"
-                value={artist}
-                change={setArtist}
-              />
-              <Field
-                label="下载保存目录（可选）"
-                value={directory}
-                change={setDirectory}
-              />
-              <text>已选择 {Object.keys(selected).length} 首</text>
-              <view className="row">
-                {action('仅导入', () => importItems(false))}
-                {action('导入并下载', () => importItems(true))}
-              </view>
+              {!videos.length && (
+                <view className="empty-state">
+                  <text className="empty-title">从一首喜欢的歌开始</text>
+                  <text className="muted">
+                    支持视频、分 P、合集及收藏夹链接
+                  </text>
+                </view>
+              )}
             </>
           )}
           {tab === '收藏夹' && (
             <>
+              {!folder && !folders.length && (
+                <Section title="我的收藏夹">
+                  <text className="muted">
+                    {account.logged_in
+                      ? '暂无收藏夹'
+                      : '登录 B 站账号后查看并导入收藏夹。'}
+                  </text>
+                  {!account.logged_in && (
+                    <Button onTap={() => void changeTab('账号')}>
+                      前往登录
+                    </Button>
+                  )}
+                </Section>
+              )}
               {folder ? (
                 <>
                   {action('返回收藏夹', async () => {
@@ -500,7 +621,7 @@ export function App() {
             </>
           )}
           {tab === '下载' && (
-            <>
+            <Section title="下载任务">
               {progress.cooldown && (
                 <text className="notice">
                   {progress.cooldown.reason} · 冷却至 {progress.cooldown.until}
@@ -593,10 +714,13 @@ export function App() {
                   </view>
                 </>
               )}
-            </>
+            </Section>
           )}
           {tab === '账号' && (
-            <>
+            <Section
+              title="B 站账号"
+              description="扫码登录或粘贴 Cookie，登录信息保存在服务端。"
+            >
               <text>
                 {account.logged_in
                   ? account.uname + (account.vip ? ' · 大会员' : '')
@@ -631,208 +755,224 @@ export function App() {
                   })}
                 </>
               )}
-            </>
+            </Section>
           )}
           {tab === '设置' && settings && (
             <>
-              <Choice
-                label="音质"
-                value={settings.audio_quality}
-                options={[
-                  ['high', '最高'],
-                  ['medium', '中'],
-                  ['low', '最低'],
-                ]}
-                change={(v) =>
-                  set('audio_quality', v as Settings['audio_quality'])
-                }
-              />
-              {(
-                [
-                  ['enable_dolby', '杜比'],
-                  ['enable_hires', 'Hi-Res'],
-                  ['embed_metadata', '嵌入元数据'],
-                  ['pause_on_error', '下载出错时暂停'],
-                  ['watch_favorite_enabled', '收藏夹自动监控'],
-                ] as const
-              ).map(([k, label]) => (
+              <Section title="音质与下载">
                 <Choice
-                  key={k}
-                  label={label}
-                  value={String(settings[k])}
+                  label="音质"
+                  value={settings.audio_quality}
                   options={[
-                    ['true', '开启'],
-                    ['false', '关闭'],
+                    ['high', '最高'],
+                    ['medium', '中'],
+                    ['low', '最低'],
                   ]}
-                  change={(v) => set(k, v === 'true')}
-                />
-              ))}
-              <Choice
-                label="下载目录组织"
-                value={settings.path_template}
-                options={[
-                  'bili/{playlist}/{title}',
-                  'bili/{title}',
-                  'bili/{artist}/{title}',
-                ].map((v) => [v, v])}
-                change={(v) => set('path_template', v)}
-              />
-              <Field
-                label="自定义路径模板"
-                value={settings.path_template}
-                change={(v) => set('path_template', v)}
-              />
-              <Choice
-                label="转码格式"
-                value={settings.transcode_format}
-                options={[
-                  ['', '原始'],
-                  ['mp3', 'MP3'],
-                  ['m4a', 'M4A'],
-                ]}
-                change={(v) =>
-                  set('transcode_format', v as Settings['transcode_format'])
-                }
-              />
-              {!!settings.transcode_format && (
-                <Choice
-                  label="码率"
-                  value={String(settings.transcode_bitrate)}
-                  options={['0', '128', '192', '320'].map((v) => [
-                    v,
-                    v === '0' ? '默认' : v,
-                  ])}
                   change={(v) =>
-                    set(
-                      'transcode_bitrate',
-                      Number(v) as Settings['transcode_bitrate'],
-                    )
+                    set('audio_quality', v as Settings['audio_quality'])
                   }
                 />
-              )}
-              <Field
-                label="下载间隔（秒）"
-                value={String(settings.download_interval)}
-                change={(v) => set('download_interval', Number(v))}
-              />
-              <Choice
-                label="监控收藏夹"
-                value={String(settings.watch_favorite_id)}
-                options={[
+                {(
                   [
-                    String(settings.watch_favorite_id),
-                    settings.watch_favorite_title || '未选择',
-                  ],
-                  ...folders.map(
-                    (f) => [String(f.id), f.title] as [string, string],
-                  ),
-                ]}
-                change={(v) => {
-                  set('watch_favorite_id', Number(v))
-                  set(
-                    'watch_favorite_title',
-                    folders.find((f) => f.id === Number(v))?.title || '',
-                  )
-                }}
-              />
-              <Choice
-                label="监控目标歌单"
-                value={String(settings.watch_playlist_id)}
-                options={[
-                  [
-                    String(settings.watch_playlist_id),
-                    settings.watch_playlist_title || '不加入歌单',
-                  ],
-                  ['0', '不加入歌单'],
-                  ...playlists.map(
-                    (p) => [String(p.id), p.name] as [string, string],
-                  ),
-                ]}
-                change={(v) => {
-                  set('watch_playlist_id', Number(v))
-                  set(
-                    'watch_playlist_title',
-                    playlists.find((p) => p.id === Number(v))?.name || '',
-                  )
-                }}
-              />
-              <Field
-                label="检查间隔（1–1440 分钟）"
-                value={String(settings.watch_interval_minutes)}
-                change={(v) => set('watch_interval_minutes', Number(v))}
-              />
-              {action('保存设置', async () => {
-                if (
-                  settings.watch_favorite_enabled &&
-                  settings.watch_favorite_id <= 0
-                )
-                  throw new Error('请选择收藏夹')
-                if (
-                  !Number.isFinite(settings.download_interval) ||
-                  settings.download_interval < 0 ||
-                  settings.watch_interval_minutes < 1 ||
-                  settings.watch_interval_minutes > 1440
-                )
-                  throw new Error('请填写有效间隔')
-                await apiPost('/api/settings', settings)
-                setSettings(await apiGet<Settings>('/api/settings'))
-              })}
-              <text>
-                监控：{watch.enabled ? '开启' : '关闭'} ·{' '}
-                {watch.running ? '检查中' : '空闲'}
-              </text>
-              <text>
-                收藏夹：{watch.folder_title || '-'} · 目标歌单：
-                {watch.playlist_title || '不加入歌单'}
-              </text>
-              <text>
-                上次：{watch.last_check_at || '-'} · 下次：
-                {watch.next_check_at || '-'}
-              </text>
-              <text>
-                待处理 {watch.counts?.pending || 0} · 已下载{' '}
-                {watch.counts?.downloaded || 0} · 失败{' '}
-                {watch.counts?.failed || 0} · 停止重试{' '}
-                {watch.counts?.retry_exhausted || 0}
-              </text>
-              <text>
-                {watch.cooldown ? '冷却至 ' + watch.cooldown.until : ''}
-                {watch.last_error || ''}
-              </text>
-              <view className="row">
-                {action('立即检查', async () => {
-                  await apiPost('/api/favorite-watch/check', {})
-                })}
-                {action('重试失败项目', async () => {
-                  await apiPost('/api/favorite-watch/retry-failed', {})
-                })}
-              </view>
-              <Button onTap={() => setConfirmBaseline((v) => !v)}>
-                重建基线
-              </Button>
-              {confirmBaseline && (
-                <>
-                  <text>
-                    当前已有项目将视为基线，之后只处理新收藏。确认继续？
-                  </text>
-                  {action('确认重建', async () => {
-                    await apiPost('/api/favorite-watch/rebaseline', {})
-                    setConfirmBaseline(false)
+                    ['enable_dolby', '杜比'],
+                    ['enable_hires', 'Hi-Res'],
+                    ['embed_metadata', '嵌入元数据'],
+                    ['pause_on_error', '下载出错时暂停'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <Toggle
+                    key={k}
+                    label={label}
+                    value={settings[k]}
+                    change={(v) => set(k, v)}
+                  />
+                ))}
+              </Section>
+              <Section title="保存与转码">
+                <Choice
+                  label="下载目录组织"
+                  value={settings.path_template}
+                  options={[
+                    ['bili/{playlist}/{title}', '按歌单'],
+                    ['bili/{title}', '统一目录'],
+                    ['bili/{artist}/{title}', '按艺术家'],
+                  ]}
+                  change={(v) => set('path_template', v)}
+                />
+                <Field
+                  label="自定义路径模板"
+                  value={settings.path_template}
+                  change={(v) => set('path_template', v)}
+                />
+                <Choice
+                  label="转码格式"
+                  value={settings.transcode_format}
+                  options={[
+                    ['', '原始'],
+                    ['mp3', 'MP3'],
+                    ['m4a', 'M4A'],
+                  ]}
+                  change={(v) =>
+                    set('transcode_format', v as Settings['transcode_format'])
+                  }
+                />
+                {!!settings.transcode_format && (
+                  <Choice
+                    label="码率"
+                    value={String(settings.transcode_bitrate)}
+                    options={['0', '128', '192', '320'].map((v) => [
+                      v,
+                      v === '0' ? '默认' : v,
+                    ])}
+                    change={(v) =>
+                      set(
+                        'transcode_bitrate',
+                        Number(v) as Settings['transcode_bitrate'],
+                      )
+                    }
+                  />
+                )}
+                <Field
+                  label="下载间隔（秒）"
+                  value={String(settings.download_interval)}
+                  change={(v) => set('download_interval', Number(v))}
+                />
+              </Section>
+              <Section
+                title="收藏夹自动监控"
+                description="首次启用仅建立基线，之后处理新加入的收藏。"
+              >
+                <Toggle
+                  label="自动监控"
+                  value={settings.watch_favorite_enabled}
+                  change={(v) => set('watch_favorite_enabled', v)}
+                />
+                <Choice
+                  label="监控收藏夹"
+                  value={String(settings.watch_favorite_id)}
+                  options={[
+                    [
+                      String(settings.watch_favorite_id),
+                      settings.watch_favorite_title || '未选择',
+                    ],
+                    ...folders.map(
+                      (f) => [String(f.id), f.title] as [string, string],
+                    ),
+                  ]}
+                  change={(v) => {
+                    set('watch_favorite_id', Number(v))
+                    set(
+                      'watch_favorite_title',
+                      folders.find((f) => f.id === Number(v))?.title || '',
+                    )
+                  }}
+                />
+                <Choice
+                  label="监控目标歌单"
+                  value={String(settings.watch_playlist_id)}
+                  options={[
+                    [
+                      String(settings.watch_playlist_id),
+                      settings.watch_playlist_title || '不加入歌单',
+                    ],
+                    ['0', '不加入歌单'],
+                    ...playlists.map(
+                      (p) => [String(p.id), p.name] as [string, string],
+                    ),
+                  ]}
+                  change={(v) => {
+                    set('watch_playlist_id', Number(v))
+                    set(
+                      'watch_playlist_title',
+                      playlists.find((p) => p.id === Number(v))?.name || '',
+                    )
+                  }}
+                />
+                <Field
+                  label="检查间隔（1–1440 分钟）"
+                  value={String(settings.watch_interval_minutes)}
+                  change={(v) => set('watch_interval_minutes', Number(v))}
+                />
+                <text>
+                  监控：{watch.enabled ? '开启' : '关闭'} ·{' '}
+                  {watch.running ? '检查中' : '空闲'}
+                </text>
+                <text>
+                  收藏夹：{watch.folder_title || '-'} · 目标歌单：
+                  {watch.playlist_title || '不加入歌单'}
+                </text>
+                <text>
+                  上次：{watch.last_check_at || '-'} · 下次：
+                  {watch.next_check_at || '-'}
+                </text>
+                <text>
+                  待处理 {watch.counts?.pending || 0} · 已下载{' '}
+                  {watch.counts?.downloaded || 0} · 失败{' '}
+                  {watch.counts?.failed || 0} · 停止重试{' '}
+                  {watch.counts?.retry_exhausted || 0}
+                </text>
+                <text>
+                  {watch.cooldown ? '冷却至 ' + watch.cooldown.until : ''}
+                  {watch.last_error || ''}
+                </text>
+                <view className="row">
+                  {action('立即检查', async () => {
+                    await apiPost('/api/favorite-watch/check', {})
                   })}
-                </>
+                  {action('重试失败项目', async () => {
+                    await apiPost('/api/favorite-watch/retry-failed', {})
+                  })}
+                </view>
+                <Button onTap={() => setConfirmBaseline((v) => !v)}>
+                  重建基线
+                </Button>
+                {confirmBaseline && (
+                  <>
+                    <text>
+                      当前已有项目将视为基线，之后只处理新收藏。确认继续？
+                    </text>
+                    {action('确认重建', async () => {
+                      await apiPost('/api/favorite-watch/rebaseline', {})
+                      setConfirmBaseline(false)
+                    })}
+                  </>
+                )}
+              </Section>
+              {action(
+                '保存设置',
+                async () => {
+                  if (
+                    settings.watch_favorite_enabled &&
+                    settings.watch_favorite_id <= 0
+                  )
+                    throw new Error('请选择收藏夹')
+                  if (
+                    !Number.isFinite(settings.download_interval) ||
+                    settings.download_interval < 0 ||
+                    settings.watch_interval_minutes < 1 ||
+                    settings.watch_interval_minutes > 1440
+                  )
+                    throw new Error('请填写有效间隔')
+                  await apiPost('/api/settings', settings)
+                  setSettings(await apiGet<Settings>('/api/settings'))
+                },
+                false,
+                true,
               )}
-              {action('测试音源搜索', async () => {
-                setWatch(
-                  await apiPost<Data>('/api/search/topone', {
-                    keyword: query,
-                    quality: '320k',
-                  }),
-                )
-              })}
-              <Field label="音源测试关键词" value={query} change={setQuery} />
+              <Section title="音源测试">
+                {action('测试音源搜索', async () => {
+                  setWatch(
+                    await apiPost<Data>('/api/search/topone', {
+                      keyword: query,
+                      quality: '320k',
+                    }),
+                  )
+                })}
+                <Field label="音源测试关键词" value={query} change={setQuery} />
+              </Section>
             </>
           )}
-          <view style={{ height: '100px' }} />
+          <view className="bottom-space" />
         </view>
       </scroll-view>
     </view>

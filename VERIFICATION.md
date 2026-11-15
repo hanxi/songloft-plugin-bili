@@ -40,3 +40,21 @@ Not run：本轮未重复浏览器/Android UI 操作，仅改发布流程，之�
 实际推送验收：提交 `7670f08e1f9391d896066ea7fd54f8bd6dd1259e` 的 [CI](https://github.com/hanxi/songloft-plugin-bili/actions/runs/43698667904) 与 [Release Plugin](https://github.com/hanxi/songloft-plugin-bili/actions/runs/43698667865) 全部成功。普通 push 自动创建 [v2026.11.15.0](https://github.com/hanxi/songloft-plugin-bili/releases/tag/v2026.11.15.0)，机器人提交 `692be3e` 回写主线元数据。本地已快进同步。
 
 下载 `/tmp/songloft-bili-auto-release-assets/bili.jsplugin.zip` 后，核对原生/Web bundle、HTML 回退入口与 `main.jsc`，并重算 entryHash、canonical zipHash；包内清单、tag 和主线的版本、来源、地址与哈希一致。tag 父提交正是 `7670f08`；ZIP SHA-256 为 `a984bf629271c4129d22c5f570b80cd0ac76fce5495f0df88eb427d2bb3efdf5`。本地旧 tag `v2026.10.7` 与远端冲突导致全 tag fetch 拒绝该旧引用，未强制覆盖；新 tag 已获取，主线快进成功，不影响本轮发布。
+
+## 样式修复验证（2026-11-15）
+
+对象：`b1324026a69673b3e086d20e4a74b662fa238cdb` 加本批工作树。前端与浏览器测试文件的指纹为 `3e0cc345819e1092c3217b5a757f9d58d3cb8de16ae3154e3e5d4e74928346b8`（文件哈希表 `/tmp/songloft-bili-layout/worktree.json`）。插件后端未改，SDK/Builder 仍为正式 npm `2.20.0`。
+
+修复：导航窄屏单行、卡片分组、独立选中态和布尔开关；链接/搜索模式切换；选歌后显示导入表单；去掉重复选项。输入框改为显式类名，并设置原生 `-x-placeholder-color` 和 Web 提示色变量。切页重建滚动容器，避免从设置页底部返回时卷走搜索页标题。
+
+Linux amd64 / Node 22.17.1 / pnpm 9.15.0：前端 typecheck、完整 49 项测试、双端构建与 validate 均通过；`git diff --check` 通过。日志 `/tmp/songloft-bili-layout-{types,tests,build,validate}.log`。
+
+Docker Chromium 121：`tests/layout.browser.cjs` 遍历 320/390/1100px、明暗主题和五页，共 30 组。断言五项导航同一行、横向无溢出、真实输入元素高度至少 40px、选中态唯一；320×480 下点击保存，后端读回音质 medium；切页回到顶部；无 pageerror。日志 `/tmp/songloft-bili-layout-browser.log`。将同一脚本的 Web bundle 替换为已发布 `v2026.11.15.0`，因 320px 导航第五项换到 y=56 而失败；日志 `/tmp/songloft-bili-layout-negative-browser.log`。浏览器主宿主中的原生 Lynx frame 也完成账号/下载/设置切换、保存后端实读、390px 截图，无页面错误，日志 `/tmp/songloft-bili-layout/host-browser.log`。
+
+真实 Android API 34 x86_64 模拟器：320×640，真实 APK 加同一份前端源码构建的 native bundle。逐一点击五个导航项并检查截图；深色输入提示可读；设置中选择“最低”，真实滑动至保存按钮并点击，后端读取 `audio_quality=low`；从底部切回搜索后标题及输入框完整显示。证据 `/tmp/songloft-bili-layout/android-final-*.png`、`native-saved.json`。APK 为之前的 Debug/TestBridge 壳，SHA-256 `1e8daecfc8a856f4fac2260b83a44d8d803e76ce4bfaf0351236b7cd174c9b1b`，本轮未改原生壳。
+
+模拟器失败如实保留：37.2.12 的 swiftshader/off 和 35.6.11 的 swiftshader 运行出现宿主 SIGSEGV；gdb 捕获 RenderThread 与 SwiftShader libGLESv2 线程堆栈，见 `/tmp/songloft-bili-layout/emulator-fault-backtrace.log`。最终 37.2.12 使用 `-gpu swangle` 稳定完成上述交互，日志 `/tmp/songloft-bili-layout/emulator-swangle.log`。并非把失败轮次改写为成功。
+
+复跑浏览器脚本（仅针对隔离测试实例，脚本会修改音质）：在 Docker Chromium 内设置 `BROWSER_PUPPETEER=/usr/src/app/node_modules/puppeteer` 和 `BILI_TEST_BASE_URL` 后运行 `node tests/layout.browser.cjs`。负向对照另设 `BILI_TEST_OLD_BUNDLE` 为旧 Web bundle 文件路径。
+
+Not run：本轮未重新构建 Android 原生壳，未操作真实 B 站账号/下载；iOS/HarmonyOS、Flutter 真机及原生浅色主题未补验。浏览器明暗主题和原生深色主题的证据范围如上。

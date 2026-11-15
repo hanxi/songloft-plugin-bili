@@ -37,3 +37,7 @@ See [migration verification](VERIFICATION.en.md) for results and untested scenar
 ## Automatic releases
 
 Pushes to `main` publish automatically using `YYYY.M.D.N` in the Asia/Shanghai timezone. Each day starts at `.0`, with increasing suffixes. Documentation-only commits do not publish; failed runs can resume without manual version changes or tags. See [release rules](docs/en/releases.md) for queue and migration details.
+
+## Layout
+
+Native and Web share compact single-row navigation, grouped cards and light/dark themes. Link import and search have separate modes; import controls appear after selecting tracks. Settings use switches and distinct selected states.

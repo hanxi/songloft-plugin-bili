@@ -9,3 +9,12 @@ Keep synchronized with [Chinese](LESSONS.md); see [release rules](docs/en/releas
 - Evidence: an isolated copy without the boundary fallback failed the `activation baseline` regression by publishing an extra historical package (`/tmp/songloft-bili-auto-release-negative.log`). The implementation passed all 49 tests (`/tmp/songloft-bili-auto-release-full-tests.log`).
 - Done right: exclude pre-activation history with `RELEASE_BASE_SHA`, then resume from `plugin.json.releaseSource` after success. Do not fabricate publication records to skip history.
 - Seen 1× (2026-11-15). This is migration regression evidence, not an observed production mispublication.
+
+## UI-001: Interaction checks do not replace migration layout acceptance
+
+- Scope: bili's HTML to ReactLynx migration; baseline `b1324026a69673b3e086d20e4a74b662fa238cdb`.
+- Evidence: release `v2026.11.15.0` fails the same real-browser regression at 320px: its fifth navigation item wraps to y=56 while the others remain at y=10 (`/tmp/songloft-bili-layout-negative-browser.log`). Saving settings had passed during migration despite lost form grouping and selected states.
+- Rule: preserve information hierarchy and narrow-screen navigation. Use explicit input classes instead of inconsistent cross-platform tag selectors. Web x-input uses `display: contents`; inspect the real input inside its shadow root for dimensions and interaction instead of treating the zero-sized host as invisible.
+- Done right: `tests/layout.browser.cjs` visits five pages at 320/390/1100px in both themes, asserting single-row navigation, no horizontal control overflow, usable inputs and short-viewport saving. The same script with the old bundle must fail on navigation wrapping. Visually inspect grouping, spacing and text colors in screenshots.
+- Seen 1× (2026-11-15). Repeated verification of this migration omission does not count as a separate incident.
+- Same-incident native checks: dark placeholders require `-x-placeholder-color`; returning from settings bottom to search retained the old scroll offset, so recreate the scroll container per tab. Native screenshots and persisted settings evidence are in [verification](VERIFICATION.en.md).
