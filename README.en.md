@@ -33,3 +33,7 @@ https://raw.githubusercontent.com/hanxi/songloft-plugin-bili/main/registry.json
 Apache-2.0 © 2026 Songloft Team
 
 See [migration verification](VERIFICATION.en.md) for results and untested scenarios. Root dependencies use the pnpm lockfile; the frontend subproject keeps its own npm lockfile for the builder.
+
+## Automatic releases
+
+Pushes to `main` publish automatically using `YYYY.M.D.N` in the Asia/Shanghai timezone. Each day starts at `.0`, with increasing suffixes. Documentation-only commits do not publish; failed runs can resume without manual version changes or tags. See [release rules](docs/en/releases.md) for queue and migration details.

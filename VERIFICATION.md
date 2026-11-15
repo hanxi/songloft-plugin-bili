@@ -15,7 +15,7 @@
 
 Not run：真实 B 站账号扫码确认、登录后的收藏夹导入/真实音频下载、Flutter 真机、iOS/HarmonyOS。扫码界面与队列代码已迁移，但不将无账号页面验证称为这些业务验收。`assembleDebug` 的 Gradle 8.7 下载过慢，未取得完整源码 APK 构建通过结果；模拟器证据只证明上述 Debug 壳与新 bundle 的行为。
 
-Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制。Lynx HTML 回退不设置 COEP 以兼容 Chromium 121；隔离宿主页跨源嵌入此 HTML 不受支持。原生/Web Lynx frame 不经过此入口。SDK/构建器现固定为 npm 正式依赖 `2.20.0`。首次发布遇到 npm 认证及待确认发布，完成后通过 [v2.20.0 恢复发布工作流](https://github.com/songloft-org/plugin-toolchain/actions/runs/43695190471) 补齐其余包；[GitHub Release](https://github.com/songloft-org/plugin-toolchain/releases/tag/v2.20.0) 已创建。bili 的发布工作流仍需单独触发，本批仅提交推送插件源码。
+Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制。Lynx HTML 回退不设置 COEP 以兼容 Chromium 121；隔离宿主页跨源嵌入此 HTML 不受支持。原生/Web Lynx frame 不经过此入口。SDK/构建器现固定为 npm 正式依赖 `2.20.0`。首次发布遇到 npm 认证及待确认发布，完成后通过 [v2.20.0 恢复发布工作流](https://github.com/songloft-org/plugin-toolchain/actions/runs/43695190471) 补齐其余包；[GitHub Release](https://github.com/songloft-org/plugin-toolchain/releases/tag/v2.20.0) 已创建。当时 bili 的发布工作流仍需单独触发，该批仅提交推送插件源码。后续已改为推送自动发布，见[发布说明](docs/releases.md)。
 
 ## 正式 npm 依赖复验
 
@@ -28,3 +28,11 @@ Web 回退依赖服务端 `web-core/` 目录；本次从 Lynx 构建产物复制
 独立 CI 首轮因工作流显式 pnpm 9 与 packageManager 的 9.15.0 重复声明而失败；已统一由项目 packageManager 决定版本，保留 `/tmp/songloft-bili-first-ci-failure.log`，最终 CI 结果以提交对应运行记录为准。
 
 独立 CI 第二轮在 Node 20 编译 WebAssembly 工具时失败（Unknown heap type -14），原生 bundle 已编译。开发及两条工作流统一为 Node.js ≥22.14；保留 `/tmp/songloft-bili-ci-second-failure.log`，由后续同一源码的 Node 22 CI 验证。
+
+## 自动发布流程验证（2026-11-15）
+
+对象：基线 `80979bd6f604ab915ddf64a285164e7bfa0124ec` 加本批发布工作流、脚本与测试改动；运行时插件代码未改。环境：Linux amd64、Node 22.17.1、pnpm 9.15.0。`pnpm test` 49 项通过，其中发布测试 11 项；隔离副本移除启用边界后，历史提交误发回归按预期失败。日志为 `/tmp/songloft-bili-auto-release-{full-tests,negative}.log`。
+
+`git diff --check` 通过。actionlint v1.7.12 尚不识别 GitHub 已支持的 `concurrency.queue`，初次检查因此失败；按[官方文档](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)核对 `queue: max` 与 `cancel-in-progress: false`，仅忽略此项旧版 schema 报错后，两份工作流其余检查通过。日志 `/tmp/songloft-bili-auto-release-lint.log`。推送后的同 SHA CI、自动 Release 和下载资产另行验收。
+
+Not run：本轮未重复浏览器/Android UI 操作，仅改发布流程，之前运行时验证记录保留。

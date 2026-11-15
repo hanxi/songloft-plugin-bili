@@ -104,3 +104,7 @@ Apache-2.0 © 2026 Songloft Team
 开发环境要求 Node.js ≥22.14（Web 构建的 WebAssembly 工具不支持 Node 20）。SDK 和构建器均固定使用 npm 正式包 `2.20.0`。执行 `pnpm install --frozen-lockfile`、`npm --prefix frontend ci`、`pnpm run build`；`npm --prefix frontend run typecheck` 检查前端类型。独立克隆本仓库即可构建，无需相邻的工具链源码。
 
 验证结果和未跑场景见 [迁移验证](VERIFICATION.md)。根目录依赖统一使用 pnpm lockfile；前端子项目由构建器使用 npm 安装，保留自己的 package-lock。
+
+## 自动发布
+
+推送到 `main` 自动发布，版本使用北京时间 `YYYY.M.D.N`，每日从 `.0` 开始，同日尾号递增。纯文档提交不发包；失败可以重跑，无需手动改版本或打 tag。队列与迁移规则见[发布说明](docs/releases.md)。

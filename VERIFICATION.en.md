@@ -15,7 +15,7 @@ Evidence: `/tmp/songloft-bili-verification/`, logs `/tmp/songloft-bili-*.log`. S
 
 Not run: authenticated Bilibili QR confirmation, favorites import and real audio downloads; Flutter devices; iOS/HarmonyOS. Migrated UI and queue code do not establish these flows were verified. Gradle 8.7 download was too slow to establish a successful source `assembleDebug`; emulator results apply to the existing Debug shell plus new JS bundle.
 
-Fallback requires server-side `web-core/` assets, copied from the Lynx Web build for this test. Lynx HTML omits COEP for Chromium 121 compatibility; isolated cross-origin HTML embedding is unsupported. Native/Web Lynx frames do not use this entry. SDK/builder dependencies are now pinned to published npm version `2.20.0`. Authentication and staged approval were required for the initial SDK publication; the [recovery workflow](https://github.com/songloft-org/plugin-toolchain/actions/runs/43695190471) completed the remaining packages and created the [GitHub Release](https://github.com/songloft-org/plugin-toolchain/releases/tag/v2.20.0). The bili release workflow requires a separate dispatch; this batch commits and pushes plugin sources only.
+Fallback requires server-side `web-core/` assets, copied from the Lynx Web build for this test. Lynx HTML omits COEP for Chromium 121 compatibility; isolated cross-origin HTML embedding is unsupported. Native/Web Lynx frames do not use this entry. SDK/builder dependencies are now pinned to published npm version `2.20.0`. Authentication and staged approval were required for the initial SDK publication; the [recovery workflow](https://github.com/songloft-org/plugin-toolchain/actions/runs/43695190471) completed the remaining packages and created the [GitHub Release](https://github.com/songloft-org/plugin-toolchain/releases/tag/v2.20.0). At that point, the bili release workflow required a separate dispatch; that batch only committed and pushed plugin sources. Subsequent work enables publishing on push; see the [release rules](docs/en/releases.md).
 
 ## Published npm dependency verification
 
@@ -28,3 +28,11 @@ During this round of Android revalidation, the emulator host exited with segment
 The first independent CI run failed because workflow pnpm 9 conflicted with packageManager 9.15.0. Both workflows now read the project-declared version. The initial failure log is retained at `/tmp/songloft-bili-first-ci-failure.log`; final CI status is attached to the corresponding commit run.
 
 The second independent CI run failed compiling the WebAssembly build tool on Node 20 (Unknown heap type -14); the native bundle compiled. Development and both workflows now require Node.js ≥22.14. The failure log remains at `/tmp/songloft-bili-ci-second-failure.log`; the subsequent Node 22 CI validates this source.
+
+## Automatic release verification (2026-11-15)
+
+Object: baseline `80979bd6f604ab915ddf64a285164e7bfa0124ec` plus this workflow, script and test worktree; plugin runtime code is unchanged. Environment: Linux amd64, Node 22.17.1, pnpm 9.15.0. All 49 `pnpm test` cases passed, including 11 release tests. Removing the activation boundary in an isolated copy failed the historical-replay regression as expected. Logs: `/tmp/songloft-bili-auto-release-{full-tests,negative}.log`.
+
+`git diff --check` passed. actionlint v1.7.12 does not recognize GitHub's supported `concurrency.queue`, causing the initial lint failure. After checking `queue: max` with `cancel-in-progress: false` against [official documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency), both workflows passed all other checks with only that outdated schema error excluded. Log: `/tmp/songloft-bili-auto-release-lint.log`. CI for the pushed SHA, automatic Release and downloaded assets are verified separately afterward.
+
+Not run: browser/Android interaction was not repeated for this release-only change; earlier runtime evidence remains recorded.
