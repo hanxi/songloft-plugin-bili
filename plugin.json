@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
   "name": "哔哩音乐",
-  "version": "2026.11.15.3",
+  "version": "2026.11.16.0",
   "description": "登录 B 站后搜索、导入歌曲，浏览并导入收藏夹歌单，支持按需播放与下载到本地",
   "author": "songloft",
   "homepage": "",
@@ -18,9 +18,9 @@
     "inter-plugin"
   ],
   "updateUrl": "https://raw.githubusercontent.com/hanxi/songloft-plugin-bili/main/plugin.json",
-  "download_url": "https://github.com/hanxi/songloft-plugin-bili/releases/download/v2026.11.15.3/bili.jsplugin.zip",
+  "download_url": "https://github.com/hanxi/songloft-plugin-bili/releases/download/v2026.11.16.0/bili.jsplugin.zip",
   "entryHash": "ad65f905ebcdd7181153e888661d13f2bb881d3cc46768d02ca9386911d5d98e",
-  "zipHash": "c29f42996c783a3bf5a2071799ccee66a5aa63f937a56468d5cfb6238771e5c9",
+  "zipHash": "cae1fcff062bce78d909109ae015d02a6298af68eb3aa42bdcfdf70a196de745",
   "renderEngine": "lynx",
-  "releaseSource": "706e7b85c59e70cbe677fb69f4bf3f281806d2da"
+  "releaseSource": "023f559cb5971b8e9ab93f0d750cfdd95f323fb2"
 }
