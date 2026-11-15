@@ -35,7 +35,10 @@ import {
 import { extractFromURL, extractVideoParts } from './extractor';
 import type { BiliVideo } from './search';
 
+import { coverHandler } from './cover';
+
 const router = createRouter();
+router.post('/api/cover', coverHandler);
 
 function downloadError(error: unknown) {
   if (error instanceof BiliApiError) return biliErrorResponse(error);

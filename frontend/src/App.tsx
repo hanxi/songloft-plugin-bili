@@ -9,6 +9,7 @@ import {
 import qrcode from 'qrcode-generator'
 import type { Settings } from '../../src/store'
 import type { BiliVideo } from '../../src/search'
+import { createReadCache, coverSource } from './requests'
 import './style.css'
 
 type Data = Record<string, any>
@@ -25,7 +26,7 @@ function Button({
   onTap: () => void
   disabled?: boolean
   selected?: boolean
-  variant?: 'secondary' | 'primary' | 'tab'
+  variant?: 'secondary' | 'primary' | 'tab' | 'link'
 }) {
   return (
     <view
@@ -83,36 +84,55 @@ function Choice({
   value,
   options,
   change,
+  compact = false,
 }: {
+  compact?: boolean
   label: string
   value: string
   options: [string, string][]
   change: (v: string) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   return (
     <view className="field">
       <text>{label}</text>
-      <view className="row">
-        {Array.from(new Map(options).entries()).map(([v, title]) => (
-          <Button key={v} selected={value === v} onTap={() => change(v)}>
-            {title}
-          </Button>
-        ))}
-      </view>
+      {compact && (
+        <Button onTap={() => setExpanded(!expanded)}>
+          {options.find(([v]) => v === value)?.[1] || '选择歌单'} ▾
+        </Button>
+      )}
+      {(!compact || expanded) && (
+        <view className="row">
+          {Array.from(new Map(options).entries()).map(([v, title]) => (
+            <Button
+              key={v}
+              selected={value === v}
+              onTap={() => {
+                change(v)
+                setExpanded(false)
+              }}
+            >
+              {title}
+            </Button>
+          ))}
+        </view>
+      )}
     </view>
   )
 }
 function Section({
+  plain = false,
   title,
   description,
   children,
 }: {
+  plain?: boolean
   title: string
   description?: string
   children: ReactNode
 }) {
   return (
-    <view className="section">
+    <view className={plain ? 'section section-search' : 'section'}>
       <text className="section-title">{title}</text>
       {description && (
         <text className="muted section-description">{description}</text>
@@ -167,15 +187,92 @@ function QR({ url }: { url: string }) {
     </view>
   )
 }
+const coverCache = new Map<string, string>()
+const coverPending = new Map<string, Promise<string>>()
+function fetchCover(url: string): Promise<string> {
+  const cached = coverCache.get(url)
+  if (cached) return Promise.resolve(cached)
+  const existing = coverPending.get(url)
+  if (existing) return existing
+  const task = apiPost<{ src: string }>('/api/cover', { url })
+    .then((reply) => {
+      // Bound decoded image data retained across tab changes to roughly 4 MB.
+      let size = [...coverCache.values()].reduce(
+        (sum, src) => sum + src.length,
+        0,
+      )
+      while (coverCache.size && size + reply.src.length > 4 * 1024 * 1024) {
+        const oldest = coverCache.keys().next().value!
+        size -= coverCache.get(oldest)!.length
+        coverCache.delete(oldest)
+      }
+      coverCache.set(url, reply.src)
+      return reply.src
+    })
+    .finally(() => coverPending.delete(url))
+  coverPending.set(url, task)
+  return task
+}
+function Cover({ source }: { source: string }) {
+  const original = coverSource(source)
+  const [src, setSrc] = useState(coverCache.get(original) || original)
+  const [failed, setFailed] = useState(false)
+  const generation = useRef(0)
+  useEffect(() => {
+    generation.current++
+    setSrc(coverCache.get(original) || original)
+    setFailed(false)
+    return () => {
+      generation.current++
+    }
+  }, [original])
+  async function fallback() {
+    const current = generation.current
+    setFailed(true)
+    if (src !== original || !original) return
+    try {
+      const reply = await fetchCover(original)
+      if (current === generation.current) {
+        setSrc(reply)
+        setFailed(false)
+      }
+    } catch {
+      /* Keep the stable placeholder. */
+    }
+  }
+  return (
+    <view className="cover">
+      <text className="cover-placeholder">♪</text>
+      {!!src && !failed && (
+        <image
+          className="cover-image"
+          src={src}
+          mode="aspectFill"
+          binderror={() => void fallback()}
+        />
+      )}
+    </view>
+  )
+}
 export function App() {
   const [theme, setTheme] = useState(getTheme()),
     [tab, setTab] = useState('搜索')
-  const [message, setMessage] = useState(''),
-    [busy, setBusy] = useState(false)
-  const busyRef = useRef(false),
+  const [messages, setMessages] = useState<Record<string, string>>({})
+  const [operations, setOperations] = useState<Record<string, boolean>>({})
+  const busyRef = useRef(new Set<string>()),
+    reads = useRef(createReadCache()),
+    [resources, setResources] = useState<
+      Record<string, { loading: boolean; error: string }>
+    >({}),
+    settingsDirty = useRef(false),
+    settingsRevision = useRef(0),
+    resourceRevisions = useRef<Record<string, number>>({}),
+    playlistChosen = useRef(false),
+    tabRef = useRef(tab),
+    scrollPositions = useRef<Record<string, number>>({}),
     alive = useRef(true),
     searchEpoch = useRef(0)
-  const [mode, setMode] = useState<'url' | 'search'>('url')
+  const [mode, setMode] = useState<'url' | 'search'>('search')
   const [query, setQuery] = useState(''),
     [url, setUrl] = useState(''),
     [page, setPage] = useState(1)
@@ -186,6 +283,7 @@ export function App() {
   const [playlists, setPlaylists] = useState<Data[]>([]),
     [playlist, setPlaylist] = useState(''),
     [playlistName, setPlaylistName] = useState('')
+  const [importAdvanced, setImportAdvanced] = useState(false)
   const [artist, setArtist] = useState(''),
     [directory, setDirectory] = useState('')
   const [folders, setFolders] = useState<Data[]>([]),
@@ -201,35 +299,91 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null),
     [watch, setWatch] = useState<Data>({}),
     [confirmBaseline, setConfirmBaseline] = useState(false)
-  async function run(action: () => Promise<void>) {
-    if (busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    setMessage('处理中…')
+  const busy = !!operations[tab]
+  const message = messages[tab] || ''
+  function setMessage(value: string, owner = tabRef.current) {
+    if (alive.current) setMessages((old) => ({ ...old, [owner]: value }))
+  }
+  async function run(action: () => Promise<void>, owner = tab) {
+    if (busyRef.current.has(owner)) return
+    busyRef.current.add(owner)
+    resourceRevisions.current[owner] =
+      (resourceRevisions.current[owner] || 0) + 1
+    setOperations((old) => ({ ...old, [owner]: true }))
+    setMessage('处理中…', owner)
     try {
       await action()
-      if (alive.current) setMessage('操作完成')
+      setMessage('操作完成', owner)
     } catch (e) {
-      if (alive.current) setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(e instanceof Error ? e.message : String(e), owner)
     } finally {
-      busyRef.current = false
-      if (alive.current) setBusy(false)
+      busyRef.current.delete(owner)
+      if (alive.current) setOperations((old) => ({ ...old, [owner]: false }))
     }
   }
+  function read(name: string, action: () => Promise<void>) {
+    return reads.current(name, async () => {
+      if (!alive.current) return
+      setResources((old) => ({ ...old, [name]: { loading: true, error: '' } }))
+      try {
+        await action()
+      } catch (e) {
+        if (alive.current)
+          setResources((old) => ({
+            ...old,
+            [name]: { loading: false, error: String(e) },
+          }))
+        return
+      }
+      if (alive.current)
+        setResources((old) => ({
+          ...old,
+          [name]: { loading: false, error: '' },
+        }))
+    })
+  }
+  function loadResource(name: string) {
+    return read(name, async () => {
+      if (name === '歌单') {
+        await loadPlaylists(true)
+        return
+      }
+      const paths: Record<string, string> = {
+        账号: '/api/login/status',
+        收藏夹: '/api/favorites',
+        设置: '/api/settings',
+        下载: '/api/download-batch/progress',
+        同步状态: '/api/favorite-watch/status',
+      }
+      const revision = resourceRevisions.current[name] || 0
+      const r = await apiGet<Data>(paths[name])
+      if (!alive.current || revision !== (resourceRevisions.current[name] || 0))
+        return
+      if (name === '账号') setAccount(r)
+      if (name === '收藏夹') setFolders(r.folders || [])
+      if (name === '设置' && !settingsDirty.current) setSettings(r as Settings)
+      if (name === '下载') setProgress(r)
+      if (name === '同步状态') setWatch(r)
+    })
+  }
+  const pageResources = (page: string) =>
+    page === '设置'
+      ? ['设置', '歌单', '收藏夹', '同步状态']
+      : page === '搜索'
+        ? ['歌单']
+        : [page]
   async function loadPlaylists(initial = false) {
     const r = await apiGet<Data>('/api/playlists')
     if (!alive.current) return
     setPlaylists(r.playlists || [])
-    if (initial) setPlaylist(String(r.last_playlist || ''))
+    if (initial && !playlistChosen.current)
+      setPlaylist(String(r.last_playlist || ''))
   }
   useEffect(() => {
     alive.current = true
     const off = onThemeChange(setTheme)
-    void run(async () => {
-      await loadPlaylists(true)
-      const r = await apiGet<Data>('/api/login/status')
-      if (alive.current) setAccount(r)
-    })
+    void loadResource('歌单')
+    void loadResource('账号')
     return () => {
       alive.current = false
       searchEpoch.current++
@@ -240,18 +394,8 @@ export function App() {
     let active = true,
       timer: ReturnType<typeof setTimeout> | undefined
     async function refresh() {
-      try {
-        if (tab === '下载') {
-          const r = await apiGet<Data>('/api/download-batch/progress')
-          if (active) setProgress(r)
-        }
-        if (tab === '设置') {
-          const r = await apiGet<Data>('/api/favorite-watch/status')
-          if (active) setWatch(r)
-        }
-      } catch (e) {
-        if (active) setMessage(String(e))
-      }
+      if (active && (tab === '下载' || tab === '设置'))
+        await loadResource(tab === '下载' ? '下载' : '同步状态')
       if (active && (tab === '下载' || tab === '设置'))
         timer = setTimeout(refresh, 2000)
     }
@@ -262,7 +406,7 @@ export function App() {
         (typeof data === 'string' ? JSON.parse(data) : (data as Data))
           ?.state === 'resumed'
       ) {
-        setMessage('已恢复，正在刷新状态')
+        pageResources(tabRef.current).forEach((name) => void loadResource(name))
       }
     })
     return () => {
@@ -306,20 +450,11 @@ export function App() {
       clearTimeout(timer)
     }
   }, [qr])
-  async function changeTab(next: string) {
+  function changeTab(next: string) {
+    tabRef.current = next
     setTab(next)
     setQr(null)
-    await run(async () => {
-      if (next === '设置') {
-        setSettings(await apiGet<Settings>('/api/settings'))
-        await loadPlaylists()
-      }
-      if (next === '收藏夹' || next === '设置') {
-        const r = await apiGet<Data>('/api/favorites')
-        setFolders(r.folders || [])
-      }
-      if (next === '账号') setAccount(await apiGet<Data>('/api/login/status'))
-    })
+    pageResources(next).forEach((name) => void loadResource(name))
   }
   async function search(nextPage: number, extract = false) {
     const epoch = ++searchEpoch.current
@@ -341,6 +476,7 @@ export function App() {
       )
     }
     if (r.playlist_title) {
+      playlistChosen.current = true
       setPlaylist('__new__')
       setPlaylistName(r.playlist_title)
     }
@@ -375,57 +511,89 @@ export function App() {
     setSelected({})
     await loadPlaylists()
     if (r.playlist_id) setPlaylist(String(r.playlist_id))
-    if (download) setTab('下载')
+    if (download && tabRef.current === '搜索') changeTab('下载')
   }
   function videoRows(items: BiliVideo[], selectable = true) {
     return items.map((v) => (
-      <view key={key(v)} className="card">
-        <view bindtap={() => selectable && toggle(v)}>
-          <text>
-            {selectable
-              ? selected[key(v)] ||
-                (parts[v.bvid]?.length &&
-                  parts[v.bvid].every((p) => selected[key(p)]))
-                ? '☑ '
-                : '☐ '
-              : ''}
-            {v.title}
-          </text>
-          <text className="muted">
-            {v.author} · {Math.floor(v.duration / 60)}:
-            {String(v.duration % 60).padStart(2, '0')}
-            {v.page ? ' · P' + v.page : ''}
-          </text>
-        </view>
-        {selectable && !v.cid && (
-          <Button
-            disabled={busy}
-            onTap={() =>
-              void run(async () => {
-                const r = await apiGet<Data>(
-                  '/api/videos/' + encodeURIComponent(v.bvid) + '/parts',
-                )
-                const items: BiliVideo[] = r.items || []
-                setParts((old) => ({ ...old, [v.bvid]: items }))
-                setSelected((old) => {
-                  const copy = { ...old }
-                  if (copy[key(v)]) {
-                    delete copy[key(v)]
-                    for (const p of items) copy[key(p)] = p
-                  }
-                  return copy
-                })
-              })
-            }
+      <view key={key(v)} className="video-item">
+        <view className="video-row">
+          <view
+            className="video-main"
+            bindtap={() => selectable && !busy && toggle(v)}
           >
-            分 P
-          </Button>
+            {selectable && (
+              <view
+                className={
+                  'selection' +
+                  (selected[key(v)] ||
+                  (parts[v.bvid]?.length &&
+                    parts[v.bvid].every((p) => selected[key(p)]))
+                    ? ' is-selected'
+                    : '')
+                }
+              >
+                <text>
+                  {selected[key(v)] ||
+                  (parts[v.bvid]?.length &&
+                    parts[v.bvid].every((p) => selected[key(p)]))
+                    ? '✓'
+                    : ''}
+                </text>
+              </view>
+            )}
+            <Cover source={v.cover} />
+            <view className="video-info">
+              <text className="video-title" text-maxline="2">
+                {v.title}
+              </text>
+              <text className="muted">
+                {v.author} · {Math.floor(v.duration / 60)}:
+                {String(v.duration % 60).padStart(2, '0')}
+                {v.page ? ' · P' + v.page : ''}
+              </text>
+            </view>
+          </view>
+          {selectable && !v.cid && (
+            <Button
+              disabled={busy}
+              onTap={() =>
+                void run(async () => {
+                  const epoch = searchEpoch.current
+                  const r = await apiGet<Data>(
+                    '/api/videos/' + encodeURIComponent(v.bvid) + '/parts',
+                  )
+                  if (!alive.current || epoch !== searchEpoch.current) return
+                  const items: BiliVideo[] = (r.items || []).map(
+                    (item: BiliVideo) => ({
+                      ...item,
+                      cover: item.cover || v.cover,
+                    }),
+                  )
+                  setParts((old) => ({ ...old, [v.bvid]: items }))
+                  setSelected((old) => {
+                    const copy = { ...old }
+                    if (copy[key(v)]) {
+                      delete copy[key(v)]
+                      for (const p of items) copy[key(p)] = p
+                    }
+                    return copy
+                  })
+                })
+              }
+            >
+              分 P
+            </Button>
+          )}
+        </view>
+        {parts[v.bvid] && !v.cid && (
+          <view className="parts">{videoRows(parts[v.bvid])}</view>
         )}
-        {parts[v.bvid] && !v.cid && videoRows(parts[v.bvid])}
       </view>
     ))
   }
   function set<K extends keyof Settings>(name: K, value: Settings[K]) {
+    settingsDirty.current = true
+    settingsRevision.current++
     setSettings((old) => (old ? { ...old, [name]: value } : old))
   }
   const action = (
@@ -450,8 +618,7 @@ export function App() {
             key={t}
             variant="tab"
             selected={tab === t}
-            disabled={busy}
-            onTap={() => void changeTab(t)}
+            onTap={() => changeTab(t)}
           >
             {t}
           </Button>
@@ -460,30 +627,42 @@ export function App() {
       {message && message !== '操作完成' && (
         <text className="notice">{message}</text>
       )}
-      <scroll-view key={tab} scroll-y className="body">
+      <scroll-view
+        key={tab}
+        scroll-y
+        className="body"
+        scroll-top={scrollPositions.current[tab] || 0}
+        bindscroll={(e) => {
+          scrollPositions.current[tab] = e.detail.scrollTop
+        }}
+      >
         <view className="content">
+          {pageResources(tab).map((name) =>
+            resources[name]?.loading || resources[name]?.error ? (
+              <view key={name} className="resource-status">
+                <text className="muted">
+                  {name}：
+                  {resources[name].loading
+                    ? '正在更新…'
+                    : resources[name].error}
+                </text>
+                {!!resources[name].error && (
+                  <Button onTap={() => void loadResource(name)}>
+                    重试{name}
+                  </Button>
+                )}
+              </view>
+            ) : null,
+          )}
           {tab === '搜索' && (
             <>
               <Section
-                title="导入歌曲"
-                description="粘贴 B 站链接，或搜索想听的音乐。"
+                plain
+                title={mode === 'search' ? '搜索音乐' : '链接导入'}
+                description="发现喜欢的音乐，加入你的歌单。"
               >
-                <view className="row mode-tabs">
-                  <Button
-                    selected={mode === 'url'}
-                    onTap={() => setMode('url')}
-                  >
-                    链接导入
-                  </Button>
-                  <Button
-                    selected={mode === 'search'}
-                    onTap={() => setMode('search')}
-                  >
-                    搜索音乐
-                  </Button>
-                </view>
                 {mode === 'url' ? (
-                  <>
+                  <view className="search-fields">
                     <Field
                       label="视频 / 合集 / 收藏夹链接"
                       value={url}
@@ -495,19 +674,29 @@ export function App() {
                       !url.trim(),
                       true,
                     )}
-                  </>
+                  </view>
                 ) : (
-                  <>
+                  <view className="search-fields">
                     <Field label="搜索关键词" value={query} change={setQuery} />
                     {action('搜索', () => search(1), !query.trim(), true)}
-                  </>
+                  </view>
                 )}
+                <Button
+                  variant="link"
+                  onTap={() => setMode(mode === 'search' ? 'url' : 'search')}
+                >
+                  {mode === 'search' ? '通过链接导入' : '返回音乐搜索'}
+                </Button>
               </Section>
-              {videoRows(videos)}
+              {!!videos.length && (
+                <text className="result-heading">搜索结果</text>
+              )}
+              <view className="results">{videoRows(videos)}</view>
               {more && action('加载更多', () => search(page + 1))}
               {Object.keys(selected).length > 0 && (
-                <Section title="导入选中的歌曲">
+                <Section title={'已选 ' + Object.keys(selected).length + ' 首'}>
                   <Choice
+                    compact
                     label="导入目标歌单"
                     value={playlist}
                     options={[
@@ -518,9 +707,12 @@ export function App() {
                       ['__new__', '新建歌单'],
                     ]}
                     change={(v) => {
+                      playlistChosen.current = true
                       setPlaylist(v)
                       void run(async () => {
-                        await apiPost('/api/import-prefs', { last_playlist: v })
+                        await apiPost('/api/import-prefs', {
+                          last_playlist: v,
+                        })
                       })
                     }}
                   />
@@ -531,17 +723,26 @@ export function App() {
                       change={setPlaylistName}
                     />
                   )}
-                  <Field
-                    label="艺术家覆盖（可选）"
-                    value={artist}
-                    change={setArtist}
-                  />
-                  <Field
-                    label="下载保存目录（可选）"
-                    value={directory}
-                    change={setDirectory}
-                  />
-                  <text>已选择 {Object.keys(selected).length} 首</text>
+                  <Button
+                    variant="link"
+                    onTap={() => setImportAdvanced(!importAdvanced)}
+                  >
+                    {importAdvanced ? '收起更多选项' : '更多导入选项'}
+                  </Button>
+                  {importAdvanced && (
+                    <view>
+                      <Field
+                        label="艺术家覆盖（可选）"
+                        value={artist}
+                        change={setArtist}
+                      />
+                      <Field
+                        label="下载保存目录（可选）"
+                        value={directory}
+                        change={setDirectory}
+                      />
+                    </view>
+                  )}
                   <view className="row">
                     {action('仅导入', () => importItems(false))}
                     {action('导入并下载', () => importItems(true), false, true)}
@@ -953,8 +1154,11 @@ export function App() {
                     settings.watch_interval_minutes > 1440
                   )
                     throw new Error('请填写有效间隔')
+                  const revision = settingsRevision.current
                   await apiPost('/api/settings', settings)
-                  setSettings(await apiGet<Settings>('/api/settings'))
+                  if (revision !== settingsRevision.current) return
+                  settingsDirty.current = false
+                  await loadResource('设置')
                 },
                 false,
                 true,

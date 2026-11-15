@@ -58,3 +58,16 @@ Docker Chromium 121：`tests/layout.browser.cjs` 遍历 320/390/1100px、明暗�
 复跑浏览器脚本（仅针对隔离测试实例，脚本会修改音质）：在 Docker Chromium 内设置 `BROWSER_PUPPETEER=/usr/src/app/node_modules/puppeteer` 和 `BILI_TEST_BASE_URL` 后运行 `node tests/layout.browser.cjs`。负向对照另设 `BILI_TEST_OLD_BUNDLE` 为旧 Web bundle 文件路径。
 
 Not run：本轮未重新构建 Android 原生壳，未操作真实 B 站账号/下载；iOS/HarmonyOS、Flutter 真机及原生浅色主题未补验。浏览器明暗主题和原生深色主题的证据范围如上。
+
+## 布局与交互优化验证（2026-11-15）
+
+对象：bili `1a22f3133e2dac7ebe085a28c1c33d1820fc3912` 加本批未提交工作树；宿主使用先前构建的隔离测试二进制 `/tmp/songloft-bili-verification/server-final2`，本批没有修改宿主。环境为 Linux amd64、Node 22.17.1、Docker Chromium 121，独立后端端口 30602，数据库与插件包位于 `/tmp/bili-redesign/`，未使用现有服务数据。
+
+- 默认搜索、次要链接入口、系统蓝明暗主题、封面列表、折叠歌单选择与更多导入选项；页签不再受操作锁阻塞，独立读请求合并，错误按资源重试。搜索选择、设置草稿和滚动位置保存在页签外。
+- 前后端 TypeScript 检查、55 项插件测试、原生/Web 双包构建及插件 validate 通过。日志 `/tmp/bili-redesign-{backend-types,tests,build,validate}.log`。新增测试最初误用未声明的 esbuild 依赖失败，改用已有 TypeScript 转译器后全通过。
+- `tests/interaction.browser.cjs` 在真实 HTML 回退页延迟设置和收藏夹请求 1600ms，验证请求结束前已切至下载、重复请求合并、默认搜索、选歌保留、刷新不覆盖设置草稿。用真实 CDN 图片及失败/空地址验证图片与占位，并检查 320/390/1100px 明暗结果列表。日志 `/tmp/bili-redesign-interaction.log`，截图 `/tmp/bili-redesign-<width>-<theme>.png`（Chrome 容器内）。这些搜索和收藏夹数据由请求夹具提供，不代表真实 B 站搜索业务验收。
+- 首轮真实图片验证失败：CDN 对本地页面 Referer 返回 403。新增限定 B 站封面的 JSON 取图回退，经宿主代理取得图片，回退图片显示及缓存跨页复用通过；未扩大宿主代理权限，令牌不返回前端。专用路由限制地址、类型及大小，并有仓储无关的处理器回归。
+- 从上述基线的隔离副本构建旧 Web bundle，同一快速切页回归得到 `收藏夹 != 下载`，按预期失败；日志 `/tmp/bili-redesign-negative.log`，基线构建日志 `/tmp/bili-redesign-baseline-build.log`。修复后同脚本通过。
+- 既有 `tests/layout.browser.cjs` 验证 30 组导航/布局/输入高度、320×480 下真实保存并后端读回 medium、无 pageerror；日志 `/tmp/bili-redesign-layout.log`。`git diff --check` 通过。最终文件 SHA-256 表在 `/tmp/bili-redesign/worktree.json`。
+
+Not run：ReactLynx 原生真机/模拟器（当前 adb 无连接设备）、Flutter 真机、iOS/HarmonyOS；真实 B 站账号扫码、收藏夹导入和音频下载。原生 bundle 构建通过不替代这些验证。没有提交、推送或发布。

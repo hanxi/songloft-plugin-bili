@@ -8,6 +8,14 @@ Songloft plugin for Bilibili music: QR/Cookie login, video search and URL extrac
 
 Node.js ≥22.14 is required; the Web build uses a WebAssembly tool unsupported by Node 20. The SDK and builder are pinned to npm version `2.20.0`. Run `pnpm install --frozen-lockfile`, `npm --prefix frontend ci`, and `pnpm run build`. Use `npm --prefix frontend run typecheck` and `pnpm test` for validation. An independent clone builds without an adjacent toolchain checkout.
 
+## Page interaction
+
+Music search is the default. “Import via link” switches to video, collection or favorite-folder extraction while preserving both inputs. Results show covers, durations and part selection. Selecting tracks reveals the playlist and import actions; artist overrides, download directories and new playlists remain available.
+
+All five tabs switch immediately with independent data updates. Search results, selection, settings drafts and per-tab scroll positions survive navigation. Failed reads offer a local retry; background downloads do not block navigation. Light and dark appearances use the main application's system blue and grouped lists.
+
+When direct cover loading fails, plugin `POST /api/cover` (`{url}` → `{src}`) retrieves the image through the existing host resource proxy. It accepts only HTTPS `*.hdslb.com/bfs/` image URLs, restricts image types and size to 2 MiB, and returns an image data URL without exposing the host token. Failures retain a placeholder without blocking results. A bounded frontend cache avoids repeated fallback requests when changing tabs.
+
 ## Features
 
 - QR and manual Cookie login; searches and URL extraction support multi-part videos.
