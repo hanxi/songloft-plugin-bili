@@ -13,11 +13,44 @@
   font-size: 14px;
   line-height: 22px;
 }
-.row {
+.actions,
+.choices {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
+  gap: 8px;
+}
+.actions {
+  margin: 12px 0;
+}
+.actions-end {
+  margin-bottom: 0;
+}
+.actions-page {
+  margin: 0 0 16px;
+}
+.actions-contained {
+  margin: 0;
+}
+.actions-page .button {
+  width: 100%;
+}
+.choices,
+.choice-current {
+  margin-top: 8px;
+}
+.choice-current .button {
+  width: 100%;
+}
+.confirmation {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e5ea;
+}
+.app.dark .confirmation {
+  border-color: #38383a;
 }
 .tabs {
   display: flex;
@@ -36,8 +69,7 @@
   max-width: 100%;
   min-height: 40px;
   padding: 8px 14px;
-  margin-top: 8px;
-  margin-right: 8px;
+  margin: 0;
   border: 1px solid #e1e2e8;
   border-radius: 10px;
   background-color: #f2f2f7;
@@ -101,9 +133,6 @@
   max-width: 760px;
   align-self: center;
   padding: 16px;
-}
-.content > .button-primary {
-  margin-bottom: 14px;
 }
 .section,
 .card {
@@ -183,14 +212,6 @@
   background-color: #ffffff;
   font-size: 15px;
 }
-.mode-tabs {
-  margin-top: 8px;
-}
-.mode-tabs .button {
-  flex: 1;
-  margin-right: 4px;
-  padding: 8px 4px;
-}
 .toggle-row {
   display: flex;
   flex-direction: row;
@@ -241,6 +262,9 @@
   background-color: #ffffff;
   align-self: center;
   margin: 12px 0;
+}
+.qr-status {
+  margin-top: 12px;
 }
 .bottom-space {
   height: 100px;
@@ -488,6 +512,7 @@
   flex-direction: row;
   align-items: center;
   flex-shrink: 0;
+  gap: 8px;
 }
 .app .picker-title {
   flex: 1;

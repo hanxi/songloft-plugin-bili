@@ -61,6 +61,15 @@ function Button({
   )
 }
 let fieldId = 0
+function Actions({
+  children,
+  placement = 'section',
+}: {
+  children: ReactNode
+  placement?: 'section' | 'end' | 'page' | 'contained'
+}) {
+  return <view className={'actions actions-' + placement}>{children}</view>
+}
 type PickerRequest = {
   label: string
   value: string
@@ -226,12 +235,14 @@ function Choice({
         {status}
       </view>
       {compact && (
-        <Button onTap={() => openPicker?.({ label, value, options, change })}>
-          {options.find(([v]) => v === value)?.[1] || '选择歌单'} ▾
-        </Button>
+        <view className="choice-current">
+          <Button onTap={() => openPicker?.({ label, value, options, change })}>
+            {options.find(([v]) => v === value)?.[1] || '选择歌单'} ▾
+          </Button>
+        </view>
       )}
       {!compact && (
-        <view className="row">
+        <view className="choices">
           {Array.from(new Map(options).entries()).map(([v, title]) => (
             <Button
               key={v}
@@ -924,20 +935,28 @@ export function App() {
                             )}
                           </view>
                         )}
-                        <Button
-                          variant="link"
-                          onTap={() =>
-                            setMode(mode === 'search' ? 'url' : 'search')
-                          }
-                        >
-                          {mode === 'search' ? '通过链接导入' : '返回音乐搜索'}
-                        </Button>
+                        <Actions placement="end">
+                          <Button
+                            variant="link"
+                            onTap={() =>
+                              setMode(mode === 'search' ? 'url' : 'search')
+                            }
+                          >
+                            {mode === 'search'
+                              ? '通过链接导入'
+                              : '返回音乐搜索'}
+                          </Button>
+                        </Actions>
                       </Section>
                       {!!videos.length && (
                         <text className="result-heading">搜索结果</text>
                       )}
                       <view className="results">{videoRows(videos)}</view>
-                      {more && action('加载更多', () => search(page + 1))}
+                      {more && (
+                        <Actions placement="page">
+                          {action('加载更多', () => search(page + 1))}
+                        </Actions>
+                      )}
                       {Object.keys(selected).length > 0 && (
                         <Section
                           title={'已选 ' + Object.keys(selected).length + ' 首'}
@@ -973,12 +992,14 @@ export function App() {
                               change={setPlaylistName}
                             />
                           )}
-                          <Button
-                            variant="link"
-                            onTap={() => setImportAdvanced(!importAdvanced)}
-                          >
-                            {importAdvanced ? '收起更多选项' : '更多导入选项'}
-                          </Button>
+                          <Actions placement="end">
+                            <Button
+                              variant="link"
+                              onTap={() => setImportAdvanced(!importAdvanced)}
+                            >
+                              {importAdvanced ? '收起更多选项' : '更多导入选项'}
+                            </Button>
+                          </Actions>
                           {importAdvanced && (
                             <view>
                               <Field
@@ -993,7 +1014,7 @@ export function App() {
                               />
                             </view>
                           )}
-                          <view className="row">
+                          <Actions placement="end">
                             {action('仅导入', () => importItems(false))}
                             {action(
                               '导入并下载',
@@ -1001,7 +1022,7 @@ export function App() {
                               false,
                               true,
                             )}
-                          </view>
+                          </Actions>
                         </Section>
                       )}
                       {!videos.length && (
@@ -1029,17 +1050,21 @@ export function App() {
                               : '登录 B 站账号后查看并导入收藏夹。'}
                           </text>
                           {!account.logged_in && (
-                            <Button onTap={() => void changeTab('账号')}>
-                              前往登录
-                            </Button>
+                            <Actions placement="end">
+                              <Button onTap={() => void changeTab('账号')}>
+                                前往登录
+                              </Button>
+                            </Actions>
                           )}
                         </>
                       )}
                       {folder ? (
                         <>
-                          {action('返回收藏夹', async () => {
-                            setFolder(null)
-                          })}
+                          <Actions>
+                            {action('返回收藏夹', async () => {
+                              setFolder(null)
+                            })}
+                          </Actions>
                           <text>
                             {folder.title}（{folder.count} 首）
                           </text>
@@ -1061,31 +1086,35 @@ export function App() {
                             value={artist}
                             change={setArtist}
                           />
-                          {action('整夹导入', async () => {
-                            await apiPost(
-                              '/api/favorites/' + folder.id + '/import',
-                              {
-                                as_playlist: asPlaylist,
-                                title: folder.title,
-                                artist_override: artist || undefined,
-                              },
-                            )
-                            await loadPlaylists()
-                          })}
+                          <Actions placement="end">
+                            {action('整夹导入', async () => {
+                              await apiPost(
+                                '/api/favorites/' + folder.id + '/import',
+                                {
+                                  as_playlist: asPlaylist,
+                                  title: folder.title,
+                                  artist_override: artist || undefined,
+                                },
+                              )
+                              await loadPlaylists()
+                            })}
+                          </Actions>
                         </>
                       ) : (
                         folders.map((f) => (
                           <view key={f.id} className="card">
-                            {action(
-                              f.title + '（' + f.count + ' 首）',
-                              async () => {
-                                const r = await apiGet<Data>(
-                                  '/api/favorites/' + f.id,
-                                )
-                                setPreview(r.results || [])
-                                setFolder(f)
-                              },
-                            )}
+                            <Actions placement="contained">
+                              {action(
+                                f.title + '（' + f.count + ' 首）',
+                                async () => {
+                                  const r = await apiGet<Data>(
+                                    '/api/favorites/' + f.id,
+                                  )
+                                  setPreview(r.results || [])
+                                  setFolder(f)
+                                },
+                              )}
+                            </Actions>
                           </view>
                         ))
                       )}
@@ -1115,7 +1144,7 @@ export function App() {
                             {progress.success} · 跳过 {progress.skipped} · 失败{' '}
                             {progress.failed}
                           </text>
-                          <view className="row">
+                          <Actions>
                             {!progress.done &&
                               action(
                                 progress.paused ? '恢复' : '暂停',
@@ -1164,7 +1193,7 @@ export function App() {
                                 },
                                 !!progress.cooldown,
                               )}
-                          </view>
+                          </Actions>
                           {(progress.songs || [])
                             .slice(downloadPage * 30, (downloadPage + 1) * 30)
                             .map((s: Data) => (
@@ -1180,7 +1209,7 @@ export function App() {
                                 )}
                               </view>
                             ))}
-                          <view className="row">
+                          <Actions placement="contained">
                             <Button
                               disabled={downloadPage === 0}
                               onTap={() => setDownloadPage((p) => p - 1)}
@@ -1196,7 +1225,7 @@ export function App() {
                             >
                               下一页
                             </Button>
-                          </view>
+                          </Actions>
                         </>
                       )}
                     </Section>
@@ -1213,32 +1242,43 @@ export function App() {
                           : '未登录'}
                       </text>
                       {account.logged_in ? (
-                        action('退出登录', async () => {
-                          await apiPost('/api/logout', {})
-                          applyAccount({ logged_in: false })
-                        })
+                        <Actions placement="end">
+                          {action('退出登录', async () => {
+                            await apiPost('/api/logout', {})
+                            applyAccount({ logged_in: false })
+                          })}
+                        </Actions>
                       ) : (
                         <>
-                          {action('生成登录二维码', async () => {
-                            setQr(await apiGet<Data>('/api/login/qrcode'))
-                            setQrText('请扫码登录')
-                          })}
+                          <Actions placement="end">
+                            {action('生成登录二维码', async () => {
+                              setQr(await apiGet<Data>('/api/login/qrcode'))
+                              setQrText('请扫码登录')
+                            })}
+                          </Actions>
                           {qr && <QR url={qr.url} />}
-                          <text>{qrText}</text>
+                          {!!qrText && (
+                            <text className="qr-status">{qrText}</text>
+                          )}
                           <Field
                             label="粘贴 Cookie"
                             value={cookie}
                             change={setCookie}
                             secret
                           />
-                          {action('Cookie 登录', async () => {
-                            const r = await apiPost<Data>('/api/login/cookie', {
-                              cookie,
-                            })
-                            if (!r.logged_in) throw new Error('Cookie 无效')
-                            applyAccount(r)
-                            setCookie('')
-                          })}
+                          <Actions placement="end">
+                            {action('Cookie 登录', async () => {
+                              const r = await apiPost<Data>(
+                                '/api/login/cookie',
+                                {
+                                  cookie,
+                                },
+                              )
+                              if (!r.logged_in) throw new Error('Cookie 无效')
+                              applyAccount(r)
+                              setCookie('')
+                            })}
+                          </Actions>
                         </>
                       )}
                     </Section>
@@ -1376,12 +1416,14 @@ export function App() {
                             <text className="muted">
                               登录 B 站后可选择监控收藏夹，其他设置可正常使用。
                             </text>
-                            <Button
-                              variant="link"
-                              onTap={() => changeTab('账号')}
-                            >
-                              前往登录
-                            </Button>
+                            <Actions placement="end">
+                              <Button
+                                variant="link"
+                                onTap={() => changeTab('账号')}
+                              >
+                                前往登录
+                              </Button>
+                            </Actions>
                           </view>
                         )}
                         <Choice
@@ -1440,7 +1482,7 @@ export function App() {
                             : ''}
                           {watch.last_error || ''}
                         </text>
-                        <view className="row">
+                        <Actions placement="end">
                           {action('立即检查', async () => {
                             await apiPost('/api/favorite-watch/check', {})
                           })}
@@ -1450,58 +1492,64 @@ export function App() {
                               {},
                             )
                           })}
-                        </view>
-                        <Button onTap={() => setConfirmBaseline((v) => !v)}>
-                          重建基线
-                        </Button>
+                          <Button onTap={() => setConfirmBaseline((v) => !v)}>
+                            重建基线
+                          </Button>
+                        </Actions>
                         {confirmBaseline && (
-                          <>
+                          <view className="confirmation">
                             <text>
                               当前已有项目将视为基线，之后只处理新收藏。确认继续？
                             </text>
-                            {action('确认重建', async () => {
-                              await apiPost(
-                                '/api/favorite-watch/rebaseline',
-                                {},
-                              )
-                              setConfirmBaseline(false)
-                            })}
-                          </>
+                            <Actions placement="end">
+                              {action('确认重建', async () => {
+                                await apiPost(
+                                  '/api/favorite-watch/rebaseline',
+                                  {},
+                                )
+                                setConfirmBaseline(false)
+                              })}
+                            </Actions>
+                          </view>
                         )}
                       </Section>
-                      {action(
-                        '保存设置',
-                        async () => {
-                          if (
-                            settings.watch_favorite_enabled &&
-                            settings.watch_favorite_id <= 0
-                          )
-                            throw new Error('请选择收藏夹')
-                          if (
-                            !Number.isFinite(settings.download_interval) ||
-                            settings.download_interval < 0 ||
-                            settings.watch_interval_minutes < 1 ||
-                            settings.watch_interval_minutes > 1440
-                          )
-                            throw new Error('请填写有效间隔')
-                          const revision = settingsRevision.current
-                          await apiPost('/api/settings', settings)
-                          if (revision !== settingsRevision.current) return
-                          settingsDirty.current = false
-                          await loadResource('设置')
-                        },
-                        false,
-                        true,
-                      )}
+                      <Actions placement="page">
+                        {action(
+                          '保存设置',
+                          async () => {
+                            if (
+                              settings.watch_favorite_enabled &&
+                              settings.watch_favorite_id <= 0
+                            )
+                              throw new Error('请选择收藏夹')
+                            if (
+                              !Number.isFinite(settings.download_interval) ||
+                              settings.download_interval < 0 ||
+                              settings.watch_interval_minutes < 1 ||
+                              settings.watch_interval_minutes > 1440
+                            )
+                              throw new Error('请填写有效间隔')
+                            const revision = settingsRevision.current
+                            await apiPost('/api/settings', settings)
+                            if (revision !== settingsRevision.current) return
+                            settingsDirty.current = false
+                            await loadResource('设置')
+                          },
+                          false,
+                          true,
+                        )}
+                      </Actions>
                       <Section title="音源测试">
-                        {action('测试音源搜索', async () => {
-                          setWatch(
-                            await apiPost<Data>('/api/search/topone', {
-                              keyword: query,
-                              quality: '320k',
-                            }),
-                          )
-                        })}
+                        <Actions placement="end">
+                          {action('测试音源搜索', async () => {
+                            setWatch(
+                              await apiPost<Data>('/api/search/topone', {
+                                keyword: query,
+                                quality: '320k',
+                              }),
+                            )
+                          })}
+                        </Actions>
                         <Field
                           label="音源测试关键词"
                           value={query}

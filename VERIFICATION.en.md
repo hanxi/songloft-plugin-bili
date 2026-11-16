@@ -1,5 +1,22 @@
 # Lynx migration verification (2026-11-15)
 
+## Button spacing across all pages (2026-11-16)
+
+2026-11-16: the user authorized this batch's commit/push. Code exactly matches `/tmp/bili-spacing/worktree.json`; only authorization records are added in this turn. The pre-commit verification snapshot below is retained; Git/Actions determine actual commits, CI and existing automatic publication results.
+
+Object: bili `23e137f67150963945444b1544b628c24e6e93d6` plus this worktree. Only the plugin changes; concurrent parent/client work is excluded. Linux amd64, Node 22.17.1, Docker Chromium 121. Tests reuse the isolated host binary and patched Web runtime, with separate database, plugin directory and package at `/tmp/bili-spacing/`, port 30606.
+
+- Cause: base buttons only owned top/right margins, without consistent space below; conditional wrappers also bypassed `.content > .button-primary`. Explicit `Actions` containers now own 8px internal gaps and 12–16px separation, with 16px below page actions and existing card padding after final actions. Download pagination removes duplicated top spacing. Choice groups/current playlists have their own containers; picker headers/footers, navigation, search rows and parts retain compact rules.
+- Audit covers load-more, import/advanced options, favorites/preview/import, download controls/pagination, account login/logout/QR, monitoring, baseline confirmation, settings save, source testing and playlist pickers. APIs, permissions and business actions are unchanged.
+- Frontend types, all 62 tests, native/Web builds, validation, formatting and diff checks pass: `/tmp/bili-spacing-{types,tests,build,validate,format-check}.log`. Android 3.6 gap/margin support is checked against local Lynx compatibility data; a native bundle is not native UI acceptance.
+- `tests/spacing.browser.cjs` defaults to six isolated pages across 320/390/1100px and light/dark themes, using a 480px short viewport at 320px. All 65 scenarios pass. Every ordinary button has an owning action area, no horizontal overflow, at least 8px between buttons/wrapped rows, and at least 16px card/picker insets (12px in confirmation subpanels; transparent search content uses page padding). Load-more/save have at least 16px below; download controls have at least 12px before the first task card. Running/paused/completed-failure/empty tasks, signed-in/anonymous states, QR and confirmation states are included. Real pointer pause/resume/pause/clear interactions emit the expected four requests. Business data is controlled, not real download acceptance.
+- The published `v2026.11.16.1` Web bundle fails the new regression at a measured 0px load-more gap; the fix measures 16px. Log: `/tmp/bili-spacing-negative.log`. Per-case logs: `/tmp/bili-spacing/browser-<width>-<theme>.log`, `matrix.json`; default runner log: `/tmp/bili-spacing-browser.log`. Chrome screenshots: `/tmp/bili-spacing-{more,downloads,settings}.png`.
+- Existing 30 layout combinations, short-viewport save/backend readback, zero polling geometry movement, 240px retained scrolling, zero anonymous favorites requests, title/parts/thousand-playlist checks and compact-navigation/login checks pass: `/tmp/bili-spacing-{layout,stability,details,compact}.log`.
+
+Limits and retained observation: an early driver incorrectly treated transparent search content as a padded card; assertions now follow actual container ownership. Combined `pierce` selectors also missed existing controls, so the driver explicitly queries the plugin shadow root. A single worker switching through every viewport/theme and then QR-related flows showed missed first taps and one exit 143; these runs are not passes and the cause is unconfirmed. Stabilizing button handlers did not eliminate the tap symptom and was reverted. Only spacing changes remain; isolated layout/QR checks do not establish that the long-flow tap issue is fixed.
+
+Not run: native Android/iOS/HarmonyOS interactions, Flutter, real Bili accounts/downloads. Previous Android emulator host startup exited 139 and was not restarted; browser evidence is not Android acceptance. No commits, pushes or releases. Final file inventory: `/tmp/bili-spacing/worktree.json`.
+
 ## Compact navigation and actual multipart state (2026-11-16)
 
 2026-11-16: the user authorized this batch's commit/push. Code exactly matches `/tmp/bili-compact/worktree.json`; only this authorization record is added. The pre-commit verification snapshot below is retained. Git/Actions determine actual commits and push-triggered publication results.
