@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "rspeedy build",
+    "postbuild": "node ../scripts/prepare-lynx-static.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

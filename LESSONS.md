@@ -2,6 +2,12 @@
 
 与 [英文版](LESSONS.en.md) 同步；发布行为见[发布说明](docs/releases.md)。
 
+## LYNX-CACHE-001：从最终插件包核对回退页的缓存地址
+
+- 范围与证据：Bili 基线 `0f0adb1f0de999796fde81d98bdfbcaa587d5628`。正式包 `v2026.11.16.2` 用固定 Web bundle 地址，服务端响应缓存一年。本轮对比中，旧包与新包的 bundle 字节相同，只有新包的回退页声明了匹配的内容哈希 URL。
+- 正确示例：前端构建后生成回退页，并验证最终 ZIP 中的地址和实际 HTTP 请求。Docker Chrome 在子路径部署中加载带版本的 Bili bundle，界面及插件 API 正常，证据见 `/tmp/songloft-bili-assets-2k1rxb/`。通用规则见 [插件开发指南](https://github.com/songloft-org/songloft/blob/main/docs/js-plugin-development-guide.md)。
+- Seen 1× (2026-11-18)。这是缓存风险验证，未观察到线上 Bili 白屏。
+
 ## RELEASE-001：自动发布启用边界不能冒充已发布源码
 
 - 范围：从旧 tag 发布迁移到逐提交自动发布，基线 `80979bd6f604ab915ddf64a285164e7bfa0124ec`。

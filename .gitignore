@@ -2,3 +2,4 @@ node_modules/
 dist/
 .songloft-dev.json
 *.log
+/static/index.html
