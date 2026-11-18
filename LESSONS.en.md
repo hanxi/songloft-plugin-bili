@@ -5,7 +5,7 @@ Keep synchronized with [Chinese](LESSONS.md); see [release rules](docs/en/releas
 ## LYNX-CACHE-001: Verify the fallback cache URL in the final plugin package
 
 - Scope and evidence: Bili baseline `0f0adb1f0de999796fde81d98bdfbcaa587d5628`. Release `v2026.11.16.2` used a fixed Web bundle URL with a one-year cache lifetime. The old and new packages contain identical bundle bytes, and the new fallback page declares the matching content-hashed URL.
-- Correct example: generate the fallback page after the frontend build and check both the final ZIP and the actual HTTP request. Docker Chrome loaded the versioned Bili bundle under a deployment subpath, rendered the UI, and received a successful plugin API response. Evidence is in `/tmp/songloft-bili-assets-2k1rxb/`. See the [plugin development guide](https://github.com/songloft-org/songloft/blob/main/docs/en/js-plugin-development-guide.md) for shared rules.
+- Correct example: generate the fallback page after the frontend build and check both the final ZIP and the actual HTTP request. Docker Chrome loaded the versioned Bili bundle under a deployment subpath, rendered the UI, and received a successful plugin API response. Evidence is in `/tmp/songloft-bili-assets-2k1rxb/`. See the [plugin development guide](https://github.com/songloft-org/songloft/blob/main/docs/en/js-plugin-development-guide.md) for shared rules. Since plugin-builder 2.22.0 the toolchain generates this declaration automatically; Bili's custom script and template are retired, and the verification steps stay the same.
 - Seen 1× (2026-11-18). This verifies the cache risk. No production Bili blank screen was observed.
 
 ## RELEASE-001: Activation boundaries must not masquerade as published sources
